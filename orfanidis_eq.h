@@ -6,12 +6,10 @@
 
 namespace orfanidis_eq {
 
-class fo_section;
-
-//Eq data types. 
+//Eq data types.
 typedef double eq_single_t;
 typedef double eq_double_t;
-//NOTE: the default float type usage 
+//NOTE: the default float type usage
 //can have shortage of precision
 
 //Eq types
@@ -39,6 +37,7 @@ static const int min_base_gain_db = -60;
 static const int butterworth_band_gain_db = -3;
 static const int chebyshev1_band_base_gain_db = -6;
 static const int chebyshev2_band_base_gain_db = -40;
+static const int eq_min_max_gain = 40;
 
 //Default freq's
 static const eq_double_t lowest_grid_center_freq_hz = 31.25;
@@ -47,7 +46,7 @@ static const eq_double_t lowest_audio_freq_hz = 20;
 static const eq_double_t highest_audio_freq_hz = 20000;
 
 //Eq config constants
-static const unsigned int default_eq_band_filters_order = 8; //>2
+static const unsigned int default_eq_band_filters_order = 4; //>2
 static const eq_double_t default_sample_freq_hz = 48000;
 
 //Version
@@ -56,21 +55,46 @@ static const char* eq_version = "0.01";
 //------------ Conversion functions class ------------
 class conversions
 {
+    int db_min_max;
+    std::vector<eq_double_t> lin_gains;
+
+    conversions(){}
+
 public:
-    static eq_double_t db_2_lin(eq_double_t x) {
+
+    conversions(int min_max) {
+        db_min_max = min_max;
+        //Update table for fast conversions
+        int step = -min_max;
+        while(step <= min_max)
+            lin_gains.push_back(db_2_lin(step++));
+    }
+
+    inline eq_double_t fast_db_2_lin(eq_double_t x) {
+        if((x >= -db_min_max) && (x < db_min_max - 1))
+        {
+            int int_part = (int)x;
+            eq_double_t frac_part = x - int_part;
+            return lin_gains[db_min_max + int_part]*(1-frac_part)+(lin_gains[db_min_max + int_part+1])*frac_part;
+        }
+        else
+            return 0;
+    }
+
+    inline static eq_double_t db_2_lin(eq_double_t x) {
         return pow(10, x/20);
     }
 
-    static eq_double_t lin_2_db(eq_double_t x) {
+    inline static eq_double_t lin_2_db(eq_double_t x) {
         return 20*log(x);
     }
 
-    static eq_double_t rad_2_hz(eq_double_t x, eq_double_t Fs) {
-        return 2*pi/x*Fs;
+    inline static eq_double_t rad_2_hz(eq_double_t x, eq_double_t fs) {
+        return 2*pi/x*fs;
     }
 
-    static eq_double_t hz_2_rad(eq_double_t x, eq_double_t Fs) {
-        return 2*pi*x/Fs;
+    inline static eq_double_t hz_2_rad(eq_double_t x, eq_double_t fs) {
+        return 2*pi*x/fs;
     }
 };
 
@@ -97,7 +121,7 @@ private:
 
 public:
     freq_grid(){}
-    freq_grid(const freq_grid &){}
+    freq_grid(const freq_grid& fg){this->freqs_ = fg.freqs_;}
     ~freq_grid(){}
 
     eq_error_t set_band(eq_double_t fmin, eq_double_t f0, eq_double_t fmax) {
@@ -118,10 +142,12 @@ public:
         if(lowest_audio_freq_hz < center_freq &&
                 center_freq < highest_audio_freq_hz) {
 
-        	//Find lowest center frequency in band
+            //Find lowest center frequency in band
             eq_double_t lowest_center_freq = center_freq;
             while(lowest_center_freq > lowest_grid_center_freq_hz)
                 lowest_center_freq/=4.0;
+            if(lowest_center_freq < lowest_grid_center_freq_hz)
+                lowest_center_freq*=4.0;
 
             //Calculate freq's
             eq_double_t f0 = lowest_center_freq;
@@ -140,10 +166,12 @@ public:
         if(lowest_audio_freq_hz < center_freq &&
                 center_freq < highest_audio_freq_hz) {
 
-        	//Find lowest center frequency in band
+            //Find lowest center frequency in band
             eq_double_t lowest_center_freq = center_freq;
             while(lowest_center_freq > lowest_grid_center_freq_hz)
                 lowest_center_freq/=2;
+            if(lowest_center_freq < lowest_grid_center_freq_hz)
+                lowest_center_freq*=2;
 
             //Calculate freq's
             eq_double_t f0 = lowest_center_freq;
@@ -162,10 +190,12 @@ public:
         if(lowest_audio_freq_hz < center_freq &&
                 center_freq < highest_audio_freq_hz) {
 
-        	//Find lowest center frequency in band
+         //Find lowest center frequency in band
             eq_double_t lowest_center_freq = center_freq;
-            while(lowest_center_freq > lowest_grid_center_freq_hz)
+            while(lowest_center_freq > lowest_audio_freq_hz)
                 lowest_center_freq/=pow(2,0.5);
+            if(lowest_center_freq < lowest_audio_freq_hz)
+                lowest_center_freq*=pow(2,0.5);
 
             //Calculate freq's
             eq_double_t f0 = lowest_center_freq;
@@ -188,6 +218,8 @@ public:
             eq_double_t lowest_center_freq = center_freq;
             while(lowest_center_freq > lowest_audio_freq_hz)
                 lowest_center_freq/=pow(2.0,1.0/3.0);
+            if(lowest_center_freq < lowest_audio_freq_hz)
+                lowest_center_freq*=pow(2.0,1.0/3.0);
 
             //Calculate freq's
             eq_double_t f0 = lowest_center_freq;
@@ -209,18 +241,48 @@ public:
         else
             return 0;
     }
+
+    unsigned int get_rounded_freq(unsigned int number) {
+        if(number < freqs_.size()) {
+            unsigned int freq = freqs_[number].center_freq;
+            if (freq < 100)
+                return freq;
+            else if(freq >= 100 && freq < 1000) {
+                unsigned int rest = freq%10;
+                if(rest < 5)
+                    return freq - rest;
+                else
+                    return freq - rest + 10;
+            }
+            else if(freq >= 1000 && freq < 10000) {
+                unsigned int rest = freq%100;
+                if(rest < 50)
+                    return freq - rest;
+                else
+                    return freq - rest + 100;
+            }
+            else if(freq >= 10000) {
+                unsigned int rest = freq%1000;
+                if(rest < 500)
+                    return freq - rest;
+                else
+                    return freq - rest + 1000;
+            }
+        }
+        return 0;
+    }
 };
 
 //------------ Forth order sections ------------
 class fo_section {
 protected:
-	eq_single_t b0; eq_single_t b1; eq_single_t b2; eq_single_t b3; eq_single_t b4;
-	eq_single_t a0; eq_single_t a1; eq_single_t a2; eq_single_t a3; eq_single_t a4;
+eq_single_t b0; eq_single_t b1; eq_single_t b2; eq_single_t b3; eq_single_t b4;
+eq_single_t a0; eq_single_t a1; eq_single_t a2; eq_single_t a3; eq_single_t a4;
 
-	eq_single_t numBuf[fo_section_order];
-	eq_single_t denumBuf[fo_section_order];
+eq_single_t numBuf[fo_section_order];
+eq_single_t denumBuf[fo_section_order];
 
-inline eq_single_t df1_process(eq_single_t in) {
+inline eq_single_t df1_fo_process(eq_single_t in) {
         eq_single_t out = 0;
         out+= b0*in;
         out+= (b1*numBuf[0] - denumBuf[0]*a1);
@@ -255,7 +317,7 @@ public:
     virtual ~fo_section(){}
 
     eq_single_t process(eq_single_t in) {
-        return df1_process(in);
+        return df1_fo_process(in);
     }
 
     virtual fo_section get() {
@@ -503,7 +565,7 @@ public:
 
     eq_single_t process(eq_single_t in) {
         eq_single_t p0 = in;
-        eq_single_t p1;
+        eq_single_t p1 = 0;
 
         //Process FO sections in serial connection
         for(unsigned int i = 0; i < sections_.size(); i++) {
@@ -518,13 +580,15 @@ public:
 // ------------ eq ------------
 class eq {
 private:
+    conversions conv;
     eq_double_t sampling_frequency_;
     freq_grid freq_grid_;
     std::vector<eq_single_t> band_gains_;
     std::vector<bp_filter*> filters_;
     eq_type current_eq_type_;
 
-    eq(){}
+    eq():conv(eq_min_max_gain){}
+    eq(const eq&):conv(eq_min_max_gain){}
 
     const char *get_eq_text(eq_type type) {
         switch(type) {
@@ -544,33 +608,30 @@ private:
     void cleanup_filters_array() {
         for(unsigned int j = 0; j < get_number_of_bands(); j++)
             delete filters_[j];
-
-        filters_.clear();
     }
 
 public:
-    eq(freq_grid &fg, eq_type eq_t = none) {
+    eq(freq_grid &fg, eq_type eq_t = none) : conv(eq_min_max_gain) {
         sampling_frequency_ = default_sample_freq_hz;
         freq_grid_ = fg;
         current_eq_type_ = eq_t;
 
-        if(eq_t == none)
-        {
         //Initialize filters array using fake objects
-        std::vector<bp_filter*> flts;
-            for(unsigned int j = 0; j < get_number_of_bands(); j++) {
-                bp_filter* flt = new dummy_bp_filter;
-                filters_.push_back(flt);
-            }
+        for(unsigned int j = 0; j < get_number_of_bands(); j++) {
+            bp_filter* flt = new dummy_bp_filter;
+            filters_.push_back(flt);
         }
-        else
+
+        if(eq_t != none)
             set_eq(freq_grid_, eq_t);
 }
     ~eq(){cleanup_filters_array();}
 
     eq_error_t set_eq(freq_grid& fg, eq_type eqt) {
         band_gains_.clear();
+        //TODO:MAke it more eleganty
         cleanup_filters_array();
+        filters_.clear();
 
         freq_grid_ = fg;
 
@@ -641,7 +702,7 @@ public:
 
     eq_error_t set_eq(eq_type eqt)
     {
-    	return set_eq(freq_grid_, eqt);
+        return set_eq(freq_grid_, eqt);
     }
 
     eq_error_t set_sample_rate(eq_double_t sr) {
@@ -654,6 +715,16 @@ public:
 
     void change_params(std::vector<eq_single_t> band_gains) {
         band_gains_ = band_gains;
+    }
+
+    void change_band_param(unsigned int band_number, eq_single_t band_gain) {
+        if(band_number < get_number_of_bands())
+            band_gains_[band_number] = band_gain;
+    }
+
+    void change_band_param_db(unsigned int band_number, eq_single_t band_gain) {
+        if(band_number < get_number_of_bands())
+            band_gains_[band_number] = conv.fast_db_2_lin(band_gain);
     }
 
     eq_error_t sbs_process(eq_single_t *in, eq_single_t *out) {
@@ -669,10 +740,8 @@ public:
     eq_type get_eq_type(){return current_eq_type_;}
     const char* get_string_eq_type(){return get_eq_text(current_eq_type_);}
     unsigned int get_number_of_bands(){return freq_grid_.get_number_of_bands();}
-    const char* get_version(){return eq_version;};
+    const char* get_version(){return eq_version;}
 };
-
-
 
 } //namespace orfanidis_eq
 #endif //ORFANIDIS_EQ_H_
