@@ -37,7 +37,7 @@ static const int min_base_gain_db = -60;
 static const int butterworth_band_gain_db = -3;
 static const int chebyshev1_band_base_gain_db = -6;
 static const int chebyshev2_band_base_gain_db = -40;
-static const int eq_min_max_gain = 40;
+static const int eq_min_max_gain_db = 46;
 
 //Default freq's
 static const eq_double_t lowest_grid_center_freq_hz = 31.25;
@@ -52,11 +52,20 @@ static const eq_double_t default_sample_freq_hz = 48000;
 //Version
 static const char* eq_version = "0.01";
 
+
 //------------ Conversion functions class ------------
 class conversions
 {
     int db_min_max;
     std::vector<eq_double_t> lin_gains;
+	
+	int lin_gains_index(eq_double_t x) {
+		int int_x = (int)x;
+		if((x >= -db_min_max) && (x < db_min_max - 1))
+			return db_min_max + int_x;
+		
+		return db_min_max;		
+	}
 
     conversions(){}
 
@@ -64,21 +73,26 @@ public:
 
     conversions(int min_max) {
         db_min_max = min_max;
-        //Update table for fast conversions
+        //Update table (vector elements) for fast conversions
         int step = -min_max;
         while(step <= min_max)
             lin_gains.push_back(db_2_lin(step++));
     }
 
     inline eq_double_t fast_db_2_lin(eq_double_t x) {
-        if((x >= -db_min_max) && (x < db_min_max - 1))
-        {
-            int int_part = (int)x;
-            eq_double_t frac_part = x - int_part;
-            return lin_gains[db_min_max + int_part]*(1-frac_part)+(lin_gains[db_min_max + int_part+1])*frac_part;
+        int int_part = (int)x;
+        eq_double_t frac_part = x - int_part;
+        return lin_gains[lin_gains_index(int_part)]*(1-frac_part)+(lin_gains[lin_gains_index(int_part + 1)])*frac_part;
+    }
+
+	inline eq_double_t fast_lin_2_db(eq_double_t x) {
+        if((x >= lin_gains[0]) && (x < lin_gains[lin_gains.size() - 1])) {	
+			for (unsigned int i = 0; i < lin_gains.size() - 2; i++)
+				if((x >= lin_gains[i]) && (x < lin_gains[i + 1]))
+					return lin_gains[i] + (lin_gains[i + 1] - lin_gains[i])*(x - ((int)x)); 
         }
-        else
-            return 0;
+
+        return 0;
     }
 
     inline static eq_double_t db_2_lin(eq_double_t x) {
@@ -134,6 +148,18 @@ public:
                 freqs_.push_back(band_freqs(fmin, f0, fmax));
             else
                 return invalid_input_data_error;
+            return no_error;
+    }
+	
+	eq_error_t add_band(eq_double_t f0, eq_double_t df) {
+			if(f0 >= df/2)
+			{
+				eq_double_t fmin = f0 - df/2;
+				eq_double_t fmax = f0 + df/2;
+                freqs_.push_back(band_freqs(fmin, f0, fmax));
+            }
+			else
+                return invalid_input_data_error;	
             return no_error;
     }
 
@@ -587,8 +613,8 @@ private:
     std::vector<bp_filter*> filters_;
     eq_type current_eq_type_;
 
-    eq():conv(eq_min_max_gain){}
-    eq(const eq&):conv(eq_min_max_gain){}
+    eq():conv(eq_min_max_gain_db){}
+    eq(const eq&):conv(eq_min_max_gain_db){}
 
     const char *get_eq_text(eq_type type) {
         switch(type) {
@@ -601,7 +627,7 @@ private:
             case chebyshev2:
                 return "chebyshev2";
             default:
-                return NULL;
+                return "none";
         }
     }
 
@@ -611,7 +637,7 @@ private:
     }
 
 public:
-    eq(freq_grid &fg, eq_type eq_t = none) : conv(eq_min_max_gain) {
+    eq(freq_grid &fg, eq_type eq_t = none) : conv(eq_min_max_gain_db) {
         sampling_frequency_ = default_sample_freq_hz;
         freq_grid_ = fg;
         current_eq_type_ = eq_t;
@@ -629,7 +655,6 @@ public:
 
     eq_error_t set_eq(freq_grid& fg, eq_type eqt) {
         band_gains_.clear();
-        //TODO:MAke it more eleganty
         cleanup_filters_array();
         filters_.clear();
 
@@ -726,15 +751,28 @@ public:
         if(band_number < get_number_of_bands())
             band_gains_[band_number] = conv.fast_db_2_lin(band_gain);
     }
-
-    eq_error_t sbs_process(eq_single_t *in, eq_single_t *out) {
-        eq_single_t channel_out = 0;
-        for(unsigned int j = 0; j < get_number_of_bands(); j++)
-            channel_out += band_gains_[j]*filters_[j]->process(*in);
-
-        *out = channel_out;
+	
+	eq_error_t sbs_process_band(unsigned int band_number, eq_single_t *in, eq_single_t *out) {
+        if(band_number < get_number_of_bands())
+            *out = band_gains_[band_number]*filters_[band_number]->process(*in);
+		else
+			return invalid_input_data_error;
 
         return no_error;
+	}
+
+     eq_error_t sbs_process(eq_single_t *in, eq_single_t *out) {
+		eq_error_t err = no_error;
+		eq_single_t acc_out = 0;		
+        for(unsigned int j = 0; j < get_number_of_bands(); j++)
+		{
+			eq_single_t band_out = 0;
+            err = sbs_process_band(j, in, &band_out);
+			acc_out += band_out;
+		}
+		*out = acc_out;
+
+        return err;
     }
 
     eq_type get_eq_type(){return current_eq_type_;}
