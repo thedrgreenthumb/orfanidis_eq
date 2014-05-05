@@ -50,7 +50,7 @@ static const unsigned int default_eq_band_filters_order = 4; //>2
 static const eq_double_t default_sample_freq_hz = 48000;
 
 //Version
-static const char* eq_version = "0.01";
+static const char* eq_version = "0.02";
 
 
 //------------ Conversion functions class ------------
@@ -339,7 +339,7 @@ public:
             denumBuf[i] = 0;
         }
     }
-
+	
     virtual ~fo_section(){}
 
     eq_single_t process(eq_single_t in) {
@@ -353,10 +353,18 @@ public:
 
 class butterworth_fo_section : public fo_section {
 public:
+	butterworth_fo_section(){}
     butterworth_fo_section(eq_double_t beta,
                            eq_double_t s, eq_double_t g, eq_double_t g0,
                            eq_double_t D, eq_double_t c0) {
-        b0 = (g*g*beta*beta + 2*g*g0*s*beta + g0*g0)/D;
+       
+		compute(beta, s, g, g0, D, c0);
+    }
+	
+	void compute(eq_double_t beta,
+			     eq_double_t s, eq_double_t g, eq_double_t g0,
+			     eq_double_t D, eq_double_t c0) {	
+		b0 = (g*g*beta*beta + 2*g*g0*s*beta + g0*g0)/D;
         b1 = -4*c0*(g0*g0 + g*g0*s*beta)/D;
         b2 = 2*(g0*g0*(1 + 2*c0*c0) - g*g*beta*beta)/D;
         b3 = -4*c0*(g0*g0 - g*g0*s*beta)/D;
@@ -367,18 +375,26 @@ public:
         a2 = 2*(1 + 2*c0*c0 - beta*beta)/D;
         a3 = -4*c0*(1 - s*beta)/D;
         a4 = (beta*beta - 2*s*beta + 1)/D;
-    }
-
+	 }
+	
     fo_section get() {return *this;}
 };
 
 class chebyshev_type1_fo_section : public fo_section {
 public:
+	chebyshev_type1_fo_section(){}
     chebyshev_type1_fo_section(eq_double_t a,
                                eq_double_t c, eq_double_t tetta_b,
                                eq_double_t g0, eq_double_t s, eq_double_t b,
                                eq_double_t D, eq_double_t c0) {
-        b0 = ((b*b + g0*g0*c*c)*tetta_b*tetta_b + 2*g0*b*s*tetta_b + g0*g0)/D;
+        compute(a, c, tetta_b, g0, s, b, D, c0);
+    }
+	
+	void compute(eq_double_t a,
+			     eq_double_t c, eq_double_t tetta_b,
+			     eq_double_t g0, eq_double_t s, eq_double_t b,
+			     eq_double_t D, eq_double_t c0) {
+		b0 = ((b*b + g0*g0*c*c)*tetta_b*tetta_b + 2*g0*b*s*tetta_b + g0*g0)/D;
         b1 = -4*c0*(g0*g0 + g0*b*s*tetta_b)/D;
         b2 = 2*(g0*g0*(1 + 2*c0*c0) - (b*b + g0*g0*c*c)*tetta_b*tetta_b)/D;
         b3 = -4*c0*(g0*g0 - g0*b*s*tetta_b)/D;
@@ -389,18 +405,26 @@ public:
         a2 = 2*(1 + 2*c0*c0 - (a*a + c*c)*tetta_b*tetta_b)/D;
         a3 = -4*c0*(1 - a*s*tetta_b)/D;
         a4 = ((a*a + c*c)*tetta_b*tetta_b - 2*a*s*tetta_b + 1)/D;
-    }
-
+	}
+	
     fo_section get() {return *this;}
 };
 
 class chebyshev_type2_fo_section : public fo_section {
 public:
+	chebyshev_type2_fo_section(){}
     chebyshev_type2_fo_section(eq_double_t a,
                                eq_double_t c, eq_double_t tetta_b,
                                eq_double_t g, eq_double_t s, eq_double_t b,
                                eq_double_t D, eq_double_t c0) {
-        b0 = (g*g*tetta_b*tetta_b + 2*g*b*s*tetta_b + b*b + g*g*c*c)/D;
+		compute(a, c, tetta_b, g, s, b, D, c0);    
+    }
+
+	void compute(eq_double_t a,
+				 eq_double_t c, eq_double_t tetta_b,
+				 eq_double_t g, eq_double_t s, eq_double_t b,
+				 eq_double_t D, eq_double_t c0) {
+		b0 = (g*g*tetta_b*tetta_b + 2*g*b*s*tetta_b + b*b + g*g*c*c)/D;
         b1 = -4*c0*(b*b + g*g*c*c + g*b*s*tetta_b)/D;
         b2 = 2*((b*b + g*g*c*c)*(1 + 2*c0*c0) - g*g*tetta_b*tetta_b)/D;
         b3 = -4*c0*(b*b + g*g*c*c - g*b*s*tetta_b)/D;
@@ -411,8 +435,8 @@ public:
         a2 = 2*((a*a + c*c)*(1 + 2*c0*c0) - tetta_b*tetta_b)/D;
         a3 = -4*c0*(a*a + c*c - a*s*tetta_b)/D;
         a4 = (tetta_b*tetta_b - 2*a*s*tetta_b + a*a + c*c)/D;
-    }
-
+	}
+	
     fo_section get() {return *this;}
 };
 
@@ -422,6 +446,7 @@ public:
     bp_filter(){}
     virtual ~bp_filter(){}
 
+	virtual void compute(eq_single_t G, eq_single_t Gb, eq_single_t G0) = 0;
     virtual eq_single_t process(eq_single_t in) = 0;
 };
 
@@ -430,28 +455,22 @@ public:
     dummy_bp_filter(){}
     ~dummy_bp_filter(){}
 
+	void compute(eq_single_t G, eq_single_t Gb, eq_single_t G0){}
     eq_single_t process(eq_single_t in){return in;}
 };
 
 class butterworth_bp_filter : public bp_filter {
 private:
-    std::vector<fo_section> sections_;
+	unsigned int N;
+	eq_double_t w0;
+	eq_double_t wb;
+
+    std::vector<butterworth_fo_section> sections_;
 
     butterworth_bp_filter(){}
-public:
-    butterworth_bp_filter(unsigned int N,
-            eq_double_t w0, eq_double_t wb,
-            eq_double_t G, eq_double_t Gb, eq_double_t G0) {
-        //Get number of analog sections
-        unsigned int r = N%2;
-        unsigned int L = (N - r)/2;
-
-        //Convert gains to linear scale
-        G = conversions::db_2_lin(G);
-        Gb = conversions::db_2_lin(Gb);
-        G0 = conversions::db_2_lin(G0);
-
-        eq_double_t epsilon = pow(((eq_double_t)(G*G - Gb*Gb))/(Gb*Gb - G0*G0),0.5);
+    
+    void reconfigure(unsigned int L, eq_single_t G, eq_single_t Gb, eq_single_t G0) {
+    	eq_double_t epsilon = pow(((eq_double_t)(G*G - Gb*Gb))/(Gb*Gb - G0*G0),0.5);
         eq_double_t g = pow(((eq_double_t)G),1.0/((eq_double_t)N));
         eq_double_t g0 = pow(((eq_double_t)G0),1.0/((eq_double_t)N));
         eq_double_t beta = pow(((eq_double_t)epsilon), -1.0/((eq_double_t)N))*tan(wb/2.0);
@@ -461,20 +480,57 @@ public:
         if (w0 == pi/2) c0=0;
         if (w0 == pi) c0 =- 1;
 
-        //Calculate every section
+        //Update every section
         for(unsigned int i = 1; i <= L; i++) {
             eq_double_t ui = (2.0*i-1)/N;
             eq_double_t si = sin(pi*ui/2.0);
 
             eq_double_t Di = beta*beta + 2*si*beta + 1;
 
-            sections_.push_back(butterworth_fo_section(beta, si, g, g0, Di, c0));
+            sections_[i - 1].compute(beta, si, g, g0, Di, c0);
         }
+    }
+public:
+    butterworth_bp_filter(unsigned int N,
+            eq_double_t w0, eq_double_t wb,
+            eq_double_t G, eq_double_t Gb, eq_double_t G0) {
+			
+		this->N = N;
+		this->w0 = w0;
+		this->wb = wb;
+				
+        //Get number of analog sections
+        unsigned int r = N%2;
+        unsigned int L = (N - r)/2;
+
+		//Initialize sections vector
+		for(unsigned int i = 1; i <= L; i++) 
+            sections_.push_back(butterworth_fo_section());
+        
+        //Convert gains to linear scale
+        G = conversions::db_2_lin(G);
+        Gb = conversions::db_2_lin(Gb);
+        G0 = conversions::db_2_lin(G0);
+
+      	reconfigure(L, G, Gb, G0);
     }
 
     ~butterworth_bp_filter(){}
 
-    virtual eq_single_t process(eq_single_t in) {
+	void compute(eq_single_t G, eq_single_t Gb, eq_single_t G0) {
+		//Get number of analog sections
+        unsigned int r = N%2;
+        unsigned int L = (N - r)/2;
+
+        //Convert gains to linear scale
+        G = conversions::db_2_lin(G);
+        Gb = conversions::db_2_lin(Gb);
+        G0 = conversions::db_2_lin(G0);
+
+        reconfigure(L, G, Gb, G0);
+	}
+	
+   eq_single_t process(eq_single_t in) {
         eq_single_t p0 = in;
         eq_single_t p1 = 0;
         //Process FO sections in serial connection
@@ -489,23 +545,16 @@ public:
 
 class chebyshev_type1_bp_filter : public bp_filter {
 private:
-    std::vector<fo_section> sections_;
+	unsigned int N;
+	eq_double_t w0;
+	eq_double_t wb;
+	
+    std::vector<chebyshev_type1_fo_section> sections_;
 
     chebyshev_type1_bp_filter(){}
-public:
-    chebyshev_type1_bp_filter(unsigned int N,
-            eq_double_t w0, eq_double_t wb,
-            eq_double_t G, eq_double_t Gb, eq_double_t G0) {
-        //Get number of analog sections
-        unsigned int r = N%2;
-        unsigned int L = (N - r)/2;
-
-        //Convert gains to linear scale
-        G = conversions::db_2_lin(G);
-        Gb = conversions::db_2_lin(Gb);
-        G0 = conversions::db_2_lin(G0);
-
-        eq_double_t epsilon = pow((eq_double_t)(G*G - Gb*Gb)/(Gb*Gb - G0*G0),0.5);
+    
+    void reconfigure(unsigned int L, eq_single_t G, eq_single_t Gb, eq_single_t G0) {
+    	eq_double_t epsilon = pow((eq_double_t)(G*G - Gb*Gb)/(Gb*Gb - G0*G0),0.5);
         eq_double_t g0 = pow((eq_double_t)(G0),1.0/N);
         eq_double_t alfa = pow(1.0/epsilon + pow(1 + pow(epsilon,-2.0),0.5),1.0/N);
         eq_double_t beta = pow(G/epsilon + Gb*pow(1 + pow(epsilon,-2.0),0.5),1.0/N);
@@ -525,13 +574,50 @@ public:
             eq_double_t si = sin(pi*ui/2.0);
 
             eq_double_t Di = (a*a + ci*ci)*tetta_b*tetta_b + 2.0*a*si*tetta_b + 1;
-            sections_.push_back(chebyshev_type1_fo_section(a, ci, tetta_b, g0, si, b, Di, c0));
+            sections_[i - 1].compute(a, ci, tetta_b, g0, si, b, Di, c0);
         }
+    }
+public:
+    chebyshev_type1_bp_filter(unsigned int N,
+            eq_double_t w0, eq_double_t wb,
+            eq_double_t G, eq_double_t Gb, eq_double_t G0) {
+			
+		this->N = N;
+		this->w0 = w0;
+		this->wb = wb;
+			
+        //Get number of analog sections
+        unsigned int r = N%2;
+        unsigned int L = (N - r)/2;
+		
+		//Initialize sections vector
+		for(unsigned int i = 1; i <= L; i++) 
+            sections_.push_back(chebyshev_type1_fo_section());
+		
+        //Convert gains to linear scale
+        G = conversions::db_2_lin(G);
+        Gb = conversions::db_2_lin(Gb);
+        G0 = conversions::db_2_lin(G0);
+
+        reconfigure(L, G, Gb, G0);
     }
 
 
     ~chebyshev_type1_bp_filter(){}
 
+	void compute(eq_single_t G, eq_single_t Gb, eq_single_t G0) {
+		//Get number of analog sections
+        unsigned int r = N%2;
+        unsigned int L = (N - r)/2;
+
+        //Convert gains to linear scale
+        G = conversions::db_2_lin(G);
+        Gb = conversions::db_2_lin(Gb);
+        G0 = conversions::db_2_lin(G0);
+
+        reconfigure(L, G, Gb, G0);
+	}
+	
     eq_single_t process(eq_single_t in) {
         eq_single_t p0 = in;
         eq_single_t p1 = 0;
@@ -547,23 +633,16 @@ public:
 
 class chebyshev_type2_bp_filter : public bp_filter {
 private:
-    std::vector<fo_section> sections_;
+	unsigned int N;
+	eq_double_t w0;
+	eq_double_t wb;
+
+    std::vector<chebyshev_type2_fo_section> sections_;
 
     chebyshev_type2_bp_filter(){}
-public:
-    chebyshev_type2_bp_filter(unsigned int N,
-            eq_double_t w0, eq_double_t wb,
-            eq_double_t G, eq_double_t Gb, eq_double_t G0) {
-        //Get number of analog sections
-        unsigned int r = N%2;
-        unsigned int L = (N - r)/2;
-
-        //Convert gains to linear scale
-        G = conversions::db_2_lin(G);
-        Gb = conversions::db_2_lin(Gb);
-        G0 = conversions::db_2_lin(G0);
-
-        eq_double_t epsilon = pow((eq_double_t)((G*G - Gb*Gb)/(Gb*Gb - G0*G0)),0.5);
+    
+    void reconfigure(unsigned int L, eq_single_t G, eq_single_t Gb, eq_single_t G0) {
+    	eq_double_t epsilon = pow((eq_double_t)((G*G - Gb*Gb)/(Gb*Gb - G0*G0)),0.5);
         eq_double_t g = pow((eq_double_t)(G),1.0/N);
         eq_double_t eu = pow(epsilon + sqrt(1 + epsilon*epsilon), 1.0/N);
         eq_double_t ew = pow(G0*epsilon + Gb*sqrt(1 + epsilon*epsilon), 1.0/N);
@@ -583,12 +662,49 @@ public:
             eq_double_t si = sin(pi*ui/2.0);
             eq_double_t Di = tetta_b*tetta_b + 2*a*si*tetta_b + a*a + ci*ci;
 
-            sections_.push_back(chebyshev_type2_fo_section(a, ci, tetta_b, g, si, b, Di, c0));
+            sections_[i - 1].compute(a, ci, tetta_b, g, si, b, Di, c0);
         }
+    }
+public:
+    chebyshev_type2_bp_filter(unsigned int N,
+            eq_double_t w0, eq_double_t wb,
+            eq_double_t G, eq_double_t Gb, eq_double_t G0) {
+			
+		this->N = N;
+		this->w0 = w0;
+		this->wb = wb;	
+		
+        //Get number of analog sections
+        unsigned int r = N%2;
+        unsigned int L = (N - r)/2;
+
+		//Initialize sections vector
+		for(unsigned int i = 1; i <= L; i++) 
+            sections_.push_back(chebyshev_type2_fo_section());
+
+        //Convert gains to linear scale
+        G = conversions::db_2_lin(G);
+        Gb = conversions::db_2_lin(Gb);
+        G0 = conversions::db_2_lin(G0);
+
+        reconfigure(L, G, Gb, G0);
     }
 
     ~chebyshev_type2_bp_filter(){}
 
+	void compute(eq_single_t G, eq_single_t Gb, eq_single_t G0) {
+		//Get number of analog sections
+        unsigned int r = N%2;
+        unsigned int L = (N - r)/2;
+
+        //Convert gains to linear scale
+        G = conversions::db_2_lin(G);
+        Gb = conversions::db_2_lin(Gb);
+        G0 = conversions::db_2_lin(G0);
+
+        reconfigure(L, G, Gb, G0);
+	}
+	
     eq_single_t process(eq_single_t in) {
         eq_single_t p0 = in;
         eq_single_t p1 = 0;
@@ -742,14 +858,33 @@ public:
         band_gains_ = band_gains;
     }
 
-    void change_band_param(unsigned int band_number, eq_single_t band_gain) {
+	//New functionality
+	eq_error_t compute_band_param(unsigned int band_number, eq_single_t band_gain) {
+		if(band_number < get_number_of_bands())
+			//!!! Now configured only for positive gain values
+			if(current_eq_type_ == butterworth || current_eq_type_ == chebyshev1) 
+				filters_[band_number]->compute(band_gain, band_gain - 3, 0);
+			else //For chebyshev 2 only now
+				filters_[band_number]->compute(band_gain, 3, 0);
+		else
+			return invalid_input_data_error;
+
+        return no_error;
+	}
+	//New functionality
+	eq_error_t compute_band_param_db(unsigned int band_number, eq_single_t band_gain) {
+		return compute_band_param(band_number, conv.fast_db_2_lin(band_gain));
+	}
+	
+    eq_error_t change_band_param(unsigned int band_number, eq_single_t band_gain) {
         if(band_number < get_number_of_bands())
             band_gains_[band_number] = band_gain;
+        else
+			return invalid_input_data_error;
     }
 
-    void change_band_param_db(unsigned int band_number, eq_single_t band_gain) {
-        if(band_number < get_number_of_bands())
-            band_gains_[band_number] = conv.fast_db_2_lin(band_gain);
+    eq_error_t change_band_param_db(unsigned int band_number, eq_single_t band_gain) {
+        return change_band_param(band_number, conv.fast_db_2_lin(band_gain));
     }
 	
 	eq_error_t sbs_process_band(unsigned int band_number, eq_single_t *in, eq_single_t *out) {

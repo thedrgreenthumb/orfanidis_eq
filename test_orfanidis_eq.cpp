@@ -33,6 +33,12 @@ public:
     test_orfanidis_eq() : equalizer(fg){}
     ~test_orfanidis_eq(){}
 
+	void initialize_single_data_vector(vector<eq_single_t> vect)
+	{
+		vect.clear();
+		vect[0] = default_unit_imp_amp;
+	}
+	
     void initialize_data_vectors(vector<vector<eq_single_t> > &vects,
             unsigned int number_of_bands,
             unsigned int data_size) {
@@ -47,8 +53,6 @@ public:
             vect[0] = default_unit_imp_amp;
             vects.push_back(vect);
         }
-
-
     }
 
     bool set_freq_grid(unsigned int number_of_bands)
@@ -117,15 +121,11 @@ public:
     }
 };
 
-int main()
+int test_non_configurable_filter_banks(test_orfanidis_eq& test_eq)
 {
-    //Print input data
-	cout << cfg_data[0] << " " << cfg_data[1] << " " << cfg_data[2] << endl;
-
-    test_orfanidis_eq test_eq;
-
+	cout << "1. Plot every bands for every filter types" << endl;
     if(test_eq.set_freq_grid(READED_NUMBER_OF_BANDS)) return 1;
-
+	
     vector<vector<eq_single_t> > test_vectors;
     test_eq.initialize_data_vectors(test_vectors, READED_NUMBER_OF_BANDS,
                                     TEST_VECTORS_NUMBER_OF_SAMPLES);
@@ -139,7 +139,7 @@ int main()
     test_eq.initialize_data_vectors(test_vectors, READED_NUMBER_OF_BANDS,
                                     TEST_VECTORS_NUMBER_OF_SAMPLES);
 
-    //Chebyshev2
+    //Chebyshev1
     test_eq.equalizer.set_eq(test_eq.fg, chebyshev1);
     test_eq.equalizer.set_sample_rate(READED_SAMPLE_RATE);
     test_eq.process_eq(test_vectors);
@@ -153,9 +153,59 @@ int main()
      test_eq.equalizer.set_sample_rate(READED_SAMPLE_RATE);
      test_eq.process_eq(test_vectors);
      test_eq.save_cs_files(test_vectors);
+	 
+	 cout << "1. Completed" << endl;
+	 
+	 return 0;
+}
 
-     cout << "Completed" << endl;
+int test_non_configurable_ripple_freq_resp(test_orfanidis_eq& test_eq)
+{
+ 	return 0;
+}
 
+int main()
+{
+    //Print input data
+	cout << cfg_data[0] << " " << cfg_data[1] << " " << cfg_data[2] << endl;
+
+    test_orfanidis_eq test_eq;
+
+	//1. 
+	if(test_non_configurable_filter_banks(test_eq))
+		return 1;
+	
+	
+	/*
+	//2.
+	vector<eq_single_t> eq_test_data(0,TEST_VECTORS_NUMBER_OF_SAMPLES);
+	initialize_single_data_vector(eq_data);
+	
+	test_eq.equalizer.set_eq(test_eq.fg, butterworth);
+    test_eq.equalizer.set_sample_rate(READED_SAMPLE_RATE);
+    test_eq.process_eq(eq_test_data); //See process, could bot work with single vector
+    test_eq.save_cs_files(eq_test_data);
+	
+	test_eq.equalizer.set_eq(test_eq.fg, butterworth);
+    test_eq.equalizer.set_sample_rate(READED_SAMPLE_RATE);
+    test_eq.process_eq(eq_test_data); //See process, could bot work with single vector
+    test_eq.save_cs_files(eq_test_data);
+	
+	test_eq.equalizer.set_eq(test_eq.fg, butterworth);
+    test_eq.equalizer.set_sample_rate(READED_SAMPLE_RATE);
+    test_eq.process_eq(eq_test_data); //See process, could bot work with single vector
+    test_eq.save_cs_files(eq_test_data);
+	*/
+
+
+	 /*Planed estimations
+	 1. plot filter-banks by every filter (see above)
+	 2. Estimate freq response ripple (all gains = 0)
+	 For new eq type: 
+	 3. Implement some eq for every filter type (5 - 30 bands)
+	 4. Check ripple at flat freq response.
+	 */
+	 
 	return 0;
 }
 
