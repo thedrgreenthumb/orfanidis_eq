@@ -6,11 +6,14 @@ if(ispc)
     error('Windows based OS not supported.');
 end;
 
+%Include custom MATLAB Toolkit
+addpath('./MDSPTK');
+
 %Build configuration file
 cfgFileName = 'orfanidis_eq.tstdat';
-cfgFileMessage = '/* parameters for test bench: sample rate in Hz, number of bands, testing data vectors length */';
+cfgFileMessage = '/* sample rate in Hz, number of bands, testing data vectors length */';
 cfgSampleRateHz = 48000;
-cfgNumberOfBands = 30;
+cfgNumberOfBands = 30; %Do not change it
 cfgTestDataVectorsLength = cfgSampleRateHz/4;
 
 cfgFId = fopen(cfgFileName,'w');
@@ -18,107 +21,29 @@ fprintf(cfgFId, '%s', cfgFileMessage);
 fprintf(cfgFId, '%d, %d, %d\n', cfgSampleRateHz, cfgNumberOfBands, cfgTestDataVectorsLength);
 fclose(cfgFId);
 
+%Build gains configuration file
+cfgGainsFileName = 'orfanidis_eq_gain.tstdat';
+cfgGainsFileMessage = '/* gains for 1/3 octave eq, 30 values in dB */';
+gainsdB = [0,0,0,0,3,0,5,0,0,16,0,0,0,0,0,0,0,0,0,0,0,-10,0,0,-5,0,0,-2,0,0];
+csvwrite(cfgGainsFileName,gainsdB);
+
 %Build and run test file
 system('make');
 system('./eq');
 
-%Read data from files
-
-% ------------ Butterworth ------------
-%Data file template 'butterworth_x.tstdat'
-
-%Read magnitudes
-butterworth = zeros(cfgNumberOfBands,cfgTestDataVectorsLength + 1); %Hack: number of samples x + 1
-for(n = 0:(cfgNumberOfBands - 1))
-    fileName = strcat('butterworth_', num2str(n),'.tstdat');
-    butterworth(n+1,:) = csvread(fileName);
-end;
-
-% ------------ Chebyshev type 1 ------------
-%Data file template 'chebyshev1_x.tstdat'
-
-%Read magnitudes
-chebyshev1 = zeros(cfgNumberOfBands,cfgTestDataVectorsLength + 1); 
-for(n = 0:(cfgNumberOfBands - 1))
-    fileName = strcat('chebyshev1_', num2str(n),'.tstdat');
-    chebyshev1(n+1,:) = csvread(fileName);
-end;
-
-% ------------ Chebyshev type 2 ------------
-%Data file template 'chebyshev2_x.tstdat'
-
-%Read magnitudes
-chebyshev2 = zeros(cfgNumberOfBands,cfgTestDataVectorsLength + 1);
-for(n = 0:(cfgNumberOfBands - 1))
-    fileName = strcat('chebyshev2_', num2str(n),'.tstdat');
-    chebyshev2(n+1,:) = csvread(fileName);
-end;
+%Configure filter analizer from MDSPTK
+fa = fanalyzer(cfgSampleRateHz);
 
 
-%Plot all
+%%% ---- eq1 class tests ----
+fa.freqResp(csvread('butterworth_eq1.tstdat'),'log','eq1: butterworth');
+fa.freqResp(csvread('chebyshev1_eq1.tstdat'),'log','eq1: chebyshev1');
+fa.freqResp(csvread('chebyshev2_eq1.tstdat'),'log','eq1: chebyshev2');
 
-%Calculate and plot it
-N=length(cfgTestDataVectorsLength + 1); %Hack again
-a=zeros(1,N);
-a(1)=1;
-
-% ------------ Butterworth ------------
-
-mxsz = size(butterworth);
-for n=1:mxsz(1)
-    [H1(n,:), F]=freqz(butterworth(n,:), a, 65536, cfgSampleRateHz);
-end;
-
-figure1 = figure;
-axes1 = axes('Parent',figure1,'XScale','log','XMinorTick','on', 'XMinorGrid','on');
-box(axes1,'on');
-grid(axes1,'on');
-hold(axes1,'all');
-
-plot(F,10*log(abs(H1)));
-
-title('Butterworth');
-xlabel('f->');
-ylabel('Mag dB');
-
-% ------------ Chebyshev 1 ------------
-
-mxsz = size(chebyshev1);
-for n=1:mxsz(1)
-    [H1(n,:), F]=freqz(chebyshev1(n,:), a, 65536, cfgSampleRateHz);
-end;
-
-figure2 = figure;
-axes1 = axes('Parent',figure2,'XScale','log','XMinorTick','on', 'XMinorGrid','on');
-box(axes1,'on');
-grid(axes1,'on');
-hold(axes1,'all');
-
-plot(F,10*log(abs(H1)));
-
-title('Chebyshev Type 1');
-xlabel('f->');
-ylabel('Mag dB');
-
-% ------------ Chebyshev 2 ------------
-
-mxsz = size(chebyshev2);
-for n=1:mxsz(1)
-    [H1(n,:), F]=freqz(chebyshev2(n,:), a, 65536, cfgSampleRateHz);
-end;
-
-figure3 = figure;
-axes1 = axes('Parent',figure3,'XScale','log','XMinorTick','on','XMinorGrid','on');
-box(axes1,'on');
-grid(axes1,'on');
-hold(axes1,'all');
-
-plot(F,10*log(abs(H1)));
-
-title('Chebyshev Type 2');
-xlabel('f->');
-ylabel('Mag dB');
-
+%%% ---- eq2 class tests ----
+fa.freqResp(csvread('butterworth_eq2.tstdat'),'log','eq2: butterworth');
+fa.freqResp(csvread('chebyshev1_eq2.tstdat'),'log','eq2: chebyshev1');
+fa.freqResp(csvread('chebyshev2_eq2.tstdat'),'log','eq2: chebyshev2');
 
 %Clean up all
 system('make clean');

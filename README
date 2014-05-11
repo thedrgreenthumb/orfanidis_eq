@@ -3,21 +3,29 @@ Description:
 	C++ implementation of equalization filters based at 
 	"High-Order Digital Parametric Equalizer Design" by Sophocles J. Orfanidis
 
-Implemented:
+Implemented next filters types:
 	Butterworth
 	Chebyshev Type 1
 	Chebyshev Type 2
+
+Classes description:
+	Two classes of equalizers provided: eq1 and eq1.
+	eq1 - equalizer with channels, which are consist of single bandpass filter.
+	eq2 - every channel consist of set of precomputed filters, 
+	where every filter computed for single gain value.
+	eq1 and eq2 have the same API.
+	See API functions below.
 
 How to run:
 	Run test_orfanidis_eq.m script using MATLAB.
 	The three plots for every filter type should appear.
 
-Usage description:
+Usage guide:
 	//Create frequency grid and equalizer objects
 	freq_grid fg;
 	freq_grid.set_N_bands();
-	eq equalizer(fg, filter_type);
+	eqX equalizer(fg, filter_type);
 	//Set gains for every band
-	equalizer.change_params();
+	equalizer.change_gains();
 	//Sample by sample processing
 	equalizer.sbs_process();
