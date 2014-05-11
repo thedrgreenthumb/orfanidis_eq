@@ -1,0 +1,3 @@
+[submodule "MDSPTK"]
+	path = MDSPTK
+	url = https://github.com/thedrgreenthumb/MDSPTK.git
