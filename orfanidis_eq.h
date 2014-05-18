@@ -4,8 +4,6 @@
 #include <math.h>
 #include <vector>
 
-#include <iostream>
-//!!! Remove it
 using namespace std;
 
 namespace orfanidis_eq {
@@ -24,7 +22,7 @@ typedef enum {
 	chebyshev2
 } filter_type;
 
-const char *get_eq_text(filter_type type) {
+static const char *get_eq_text(filter_type type) {
     switch(type) {
         case none:
             return "not initialized";
@@ -1029,8 +1027,9 @@ public:
 	    return no_error;
 	}
 	
-	eq_single_t sbs_process(eq_single_t *in, eq_single_t *out) {
+	eq_error_t sbs_process(eq_single_t *in, eq_single_t *out) {
 		*out = filters_[current_filter_index_]->process(*in);
+		return no_error;
 	}
 };
 
@@ -1079,12 +1078,14 @@ public:
 	}
 
 	eq_error_t set_eq(filter_type ft) {
-		set_eq(freq_grid_, ft);
+		eq_error_t err = set_eq(freq_grid_, ft);
+		return err;
 	}
 	
 	eq_error_t set_sample_rate(eq_double_t sr) {
 		sampling_frequency_ = sr;
-		set_eq(current_eq_type_); 
+		eq_error_t err = set_eq(current_eq_type_); 
+		return err;
 	}
 	
 	eq_error_t change_gains(std::vector<eq_single_t> band_gains) {
@@ -1132,7 +1133,9 @@ public:
     	if(band_number < get_number_of_bands())
 	        channels_[band_number]->sbs_process(in, out);
 		else
-			return invalid_input_data_error;   	
+			return invalid_input_data_error; 
+			
+		return no_error;  	
 	}
     
     eq_error_t sbs_process(eq_single_t *in, eq_single_t *out) {
