@@ -15,12 +15,12 @@ Implemented next filters types:
 	Chebyshev Type 2
 
 Classes description:
-	Two classes of equalizers provided: eq1 and eq1.
+	The two classes of equalizers are provided: eq1 and eq2.
 	eq1 - equalizer with channels, which are consist of single bandpass filter.
 	eq2 - every channel consist of set of precomputed filters, 
 	where every filter computed for single gain value.
 	eq1 and eq2 have the same API.
-	See API functions below.
+	See Usage guide below.
 
 How to run:
 	Run test_orfanidis_eq.m script using MATLAB.
