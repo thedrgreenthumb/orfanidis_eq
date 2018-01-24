@@ -6,6 +6,10 @@ if(ispc)
     error('Windows based OS not supported.');
 end;
 
+%TODO: Fix it.
+% The test programm call modification is required
+exit(1)
+
 %Include custom MATLAB Toolkit
 addpath('./MDSPTK');
 

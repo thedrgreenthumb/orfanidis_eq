@@ -1,3 +1,29 @@
+/*
+ * Copyright (c) 2018 Fedor Uporov
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -7,189 +33,232 @@
 #include "orfanidis_eq.h"
 
 using namespace std;
-using namespace orfanidis_eq;
+using namespace OrfanidisEq;
 
-//Include testing data from file:
-//sample rate in Hz, number of bands, number of samples in testing vectors
-const unsigned int cfg_data[3] =
-{
-#include "orfanidis_eq.tstdat"
-};
+static const int classConversionsRangeDb = eqGainRangeDb;
 
-#define READED_SAMPLE_RATE (cfg_data[0])
-#define READED_NUMBER_OF_BANDS (cfg_data[1])
-#define TEST_VECTORS_NUMBER_OF_SAMPLES (cfg_data[2])
+static const double defaultMaxGain = 1.0;
+static const double defaultMinGain = 0.0;
+static const double defaultUnitImpAmp = 1.0;
 
-//Include testing data from file:
-//30 gain values for equalizers configuration
-const double cfg_gains_data[30] = //TODO:Find some other way to read gains
-{
-#include "orfanidis_eq_gain.tstdat"
-};
-
-static const int class_conversions_min_max_db = eq_min_max_gain_db;
-
-static const double default_max_gain = 1.0;
-static const double default_min_gain = 0.0;
-static const double default_unit_imp_amp = 1.0;
-
-// ------------ test_orfanidis_eq ------------
-//Provide auxiliary functions for EQ's testing
-template <typename eq_type>
-class test_orfanidis_eq
-{
+/*
+ * Provide auxiliary functions for EQ testing.
+ */
+class TestOrfanidisEq {
 public:
-    test_orfanidis_eq(){}
-    ~test_orfanidis_eq(){}
+	TestOrfanidisEq(){}
+	~TestOrfanidisEq(){}
 
-	bool set_freq_grid(freq_grid& fg, unsigned int number_of_bands) {
-        switch(number_of_bands)
-        {
-            case 5:
-                fg.set_5_bands(bands_grid_center_freq_hz);
-                break;
-            case 10:
-                fg.set_10_bands(bands_grid_center_freq_hz);
-                break;
-            case 20:
-                fg.set_20_bands(bands_grid_center_freq_hz);
-                break;
-            case 30:
-                fg.set_30_bands(bands_grid_center_freq_hz);
-                break;
-            default:
-                cout << "Can not configue freq grid, provide 5,10,20 or 30." << 					"Provided : " << number_of_bands << endl;
-                return true;
-        }
-        return false;
-    }
+	bool setFreqGrid(FrequencyGrid& fg, unsigned int numberOfBands)
+	{
+		switch(numberOfBands) {
+			case 5:
+				fg.set5Bands(bandsGridCenterFreqHz);
+				break;
 
-	void set_unit_impulse(vector<eq_single_t>& vect) {
-		vect[0] = default_unit_imp_amp;
+			case 10:
+				fg.set10Bands(bandsGridCenterFreqHz);
+				break;
+
+			case 20:
+				fg.set20Bands(bandsGridCenterFreqHz);
+				break;
+
+			case 30:
+				fg.set30Bands(bandsGridCenterFreqHz);
+				break;
+
+			default:
+				cout <<
+				    "Can not configue freq grid, provide 5,10,20 or 30."
+				    << "Provided : " << numberOfBands << endl;
+
+				return true;
+		}
+
+		return false;
 	}
-	
-	void process_eq(eq_type& equalizer, vector<eq_single_t> &in, 
-		vector<eq_single_t> &out) {
-        for(unsigned int i = 0; i < in.size(); i++)
-            equalizer.sbs_process(&in[i], &out[i]);
-    }
-	
-	void save_cs_file(string file_name, vector<eq_single_t>& test_vector) {
-        //Write to file
-        ofstream data_file;
-        data_file.open(file_name.c_str());
-        if (!data_file.is_open())
-            return;
-        for(unsigned int j = 0; j < test_vector.size(); j++)
-            data_file << test_vector[j] << ", ";
-        data_file.close();     
-    }
+
+	void setUnitImpulse(vector<eq_double_t>& vect)
+	{
+		vect[0] = defaultUnitImpAmp;
+	}
+
+	void processEq(Eq& equalizer, vector<eq_double_t> &in,
+	    vector<eq_double_t> &out)
+	{
+		for (unsigned int i = 0; i < in.size(); i++)
+			equalizer.SBSProcess(&in[i], &out[i]);
+	}
+
+	void saveCSFile(string fileName, vector<eq_double_t>& testVector)
+	{
+		/* Write to file. */
+		ofstream dataFile;
+
+		dataFile.open(fileName.c_str());
+		if (!dataFile.is_open())
+			return;
+
+		for (unsigned int j = 0; j < testVector.size() - 1; j++)
+			dataFile << testVector[j] << ", ";
+
+		dataFile << testVector[testVector.size() - 1] << endl;
+
+		dataFile.close();
+	}
 };
 
+void classConversionsTest()
+{
+	Conversions convs(classConversionsRangeDb);
 
-void print_input_configuration_data() {
-	//Print input cfg data
-    cout << "Data from cfg file : " << endl;
-	cout << READED_SAMPLE_RATE << " " << 
-		READED_NUMBER_OF_BANDS << " " << TEST_VECTORS_NUMBER_OF_SAMPLES << endl;
-	
-	cout << "Gains cfg data : " << endl;
-	for(unsigned int i = 0; i < READED_NUMBER_OF_BANDS; i++)
-		cout << cfg_gains_data[i] << ", ";
-		
-	cout << endl << "dB" << endl;
-}
-
-void class_conversions_test() {
-	//Conversions class test
-	conversions convs(class_conversions_min_max_db);
 	cout << "1. conversions class: fast conversions test : " << endl;
 	cout << "db -> lin -> fast_lin" << endl;
-	eq_double_t test_min_max_db = class_conversions_min_max_db + 3;
-	eq_single_t ref_db = 0;
-	for(ref_db = -test_min_max_db; ref_db < test_min_max_db; ref_db+=6.4)
-		 cout << ref_db << " " << convs.db_2_lin(ref_db) << " " <<  	
-		 	convs.fast_db_2_lin(ref_db) << endl;
 
-	cout << "lin -> db -> fast_db" << endl; 
-	eq_single_t ref_lin = 0;	
- 	for(ref_lin = 0.00316 /* -50 db */; ref_lin < 316 /* 50 db */; 
- 		ref_lin*=convs.db_2_lin(6))
- 		cout << ref_lin << " " << convs.lin_2_db(ref_lin) << " " << 
-		 	convs.fast_lin_2_db(ref_lin) << endl;
-	
+	eq_double_t testRangeDb = classConversionsRangeDb + 3;
+	eq_double_t refDb = 0;
+
+	for (refDb = -testRangeDb; refDb < testRangeDb; refDb += 6.4)
+		cout << refDb << " " << convs.db2Lin(refDb) << " " <<
+		    convs.fastDb2Lin(refDb) << endl;
+
+	cout << "lin -> db -> fast_db" << endl;
+
+	eq_double_t refLin = 0;
+	for (refLin = 0.00316 /* -50 db */; refLin < 316 /* 50 db */;
+	    refLin*=convs.db2Lin(6))
+		cout << refLin << " " << convs.lin2Db(refLin) << " " <<
+		    convs.fastLin2Db(refLin) << endl;
+
 	cout << "----" << endl;
 }
 
-void class_freq_grid_test() {
+void classFreqGridTest()
+{
 	cout << "2. freq_grid class: print freqs for 1/3 octave eq:" << endl;
-	freq_grid fg;
-	fg.set_30_bands();
-	
+
+	FrequencyGrid fg;
+	fg.set30Bands();
+
 	cout << "band freq : rounded band freq" << endl;
-	for (unsigned int i = 0; i < fg.get_number_of_bands(); i++)
-	cout << fg.get_freq(i) << " : " << fg.get_rounded_freq(i) << endl;
+
+	for (unsigned int i = 0; i < fg.getNumberOfBands(); i++)
+	    cout << fg.getFreq(i) << " : " << fg.getRoundedFreq(i) << endl;
 }
 
-template <typename eq_type>
-void class_eq_test(string extention) {
-	test_orfanidis_eq<eq_type> test_eq;
-	
-	//Input configuration
-	freq_grid fg;
-    test_eq.set_freq_grid(fg, READED_NUMBER_OF_BANDS);
-    
-    //Input data vector
-    vector<eq_single_t> in_vector(TEST_VECTORS_NUMBER_OF_SAMPLES, 0);
-    test_eq.set_unit_impulse(in_vector);
-    
-    //Input gains vector
-    vector<eq_single_t> gains(cfg_gains_data, 
-    	cfg_gains_data + READED_NUMBER_OF_BANDS);    
+void printInputConfigurationData(int sampleRate, int testVectorLength,
+    int numberOfBands, const vector<double>& gains)
+{
+	cout << "SampleRate = " << sampleRate << " " << "Hz." << endl;
+	cout << "Input vector size = " << testVectorLength << " " << "samples" << endl;
+	cout << "Number of bands = " << numberOfBands << endl;
 
-    //Butterworth
-    vector<eq_single_t> butterworth_out(TEST_VECTORS_NUMBER_OF_SAMPLES, 0);
-	eq_type equalizer(fg, butterworth);
-	equalizer.set_sample_rate(READED_SAMPLE_RATE);
-	equalizer.change_gains_db(gains);
-	test_eq.process_eq(equalizer, in_vector, butterworth_out);
-	string butterworth_f_name("butterworth_");
-	butterworth_f_name += extention;
-	butterworth_f_name += ".tstdat";
-    test_eq.save_cs_file(butterworth_f_name , butterworth_out);
-    
-    //Chebyshev1
-    vector<eq_single_t> chebyshev1_out(TEST_VECTORS_NUMBER_OF_SAMPLES, 0);
-    equalizer.set_eq(fg, chebyshev1);
-	equalizer.set_sample_rate(READED_SAMPLE_RATE);
-	equalizer.change_gains_db(gains);
-	test_eq.process_eq(equalizer, in_vector, chebyshev1_out);
-	string chebyshev1_f_name("chebyshev1_");
-	chebyshev1_f_name += extention;
-	chebyshev1_f_name += ".tstdat";
-    test_eq.save_cs_file(chebyshev1_f_name, chebyshev1_out);
-    
-    //Chebyshev2
-    vector<eq_single_t> chebyshev2_out(TEST_VECTORS_NUMBER_OF_SAMPLES, 0);
-    equalizer.set_eq(fg, chebyshev2);
-	equalizer.set_sample_rate(READED_SAMPLE_RATE);
-	equalizer.change_gains_db(gains);
-	test_eq.process_eq(equalizer, in_vector, chebyshev2_out);
-	string chebyshev2_f_name("chebyshev2_");
-	chebyshev2_f_name += extention;
-	chebyshev2_f_name += ".tstdat";
-    test_eq.save_cs_file(chebyshev2_f_name, chebyshev2_out);
+	cout << "Gains data : ";
+	for (int i = 0; i < numberOfBands; i++)
+		cout << gains[i] << ", ";
+
+	cout << "dB" << endl;
 }
 
-int main() {
-	
-	class_eq_test<eq1>("eq1");
-	class_eq_test<eq2>("eq2");
-	
+void classEqTest(int sampleRate, int testVectorLength, int numberOfBands,
+    const vector<double>& gains)
+{
+	printInputConfigurationData(sampleRate, testVectorLength, numberOfBands, gains);
+
+	TestOrfanidisEq testEq;
+
+	/* Input configuration. */
+	FrequencyGrid fg;
+	testEq.setFreqGrid(fg, numberOfBands);
+
+	/* Input data vector. */
+	vector<eq_double_t> inVector(testVectorLength, 0);
+	testEq.setUnitImpulse(inVector);
+
+	vector<eq_double_t> butterworthOut(testVectorLength, 0);
+	Eq equalizer(fg, butterworth);
+	equalizer.setSampleRate(sampleRate);
+	equalizer.changeGainsDb(gains);
+	testEq.processEq(equalizer, inVector, butterworthOut);
+	string butterworthFileName("butterworth.tstdat");
+	testEq.saveCSFile(butterworthFileName, butterworthOut);
+
+	vector<eq_double_t> chebyshev1Out(testVectorLength, 0);
+	equalizer.setEq(fg, chebyshev1);
+	equalizer.setSampleRate(sampleRate);
+	equalizer.changeGainsDb(gains);
+	testEq.processEq(equalizer, inVector, chebyshev1Out);
+	string chebyshev1FileName("chebyshev1.tstdat");
+	testEq.saveCSFile(chebyshev1FileName, chebyshev1Out);
+
+	vector<eq_double_t> chebyshev2Out(testVectorLength, 0);
+	equalizer.setEq(fg, chebyshev2);
+	equalizer.setSampleRate(sampleRate);
+	equalizer.changeGainsDb(gains);
+	testEq.processEq(equalizer, inVector, chebyshev2Out);
+	string chebyshev2FileName("chebyshev2.tstdat");
+	testEq.saveCSFile(chebyshev2FileName, chebyshev2Out);
+}
+
+void usage()
+{
+	cout << "usage keys:" << endl;
+	cout << "-f - sampling frequency in Hz" << endl;
+	cout << "-s - input vector size" << endl;
+	cout << "-b - number of bands" << endl;
+	cout << "-g - list of gains per band in db" << endl;
+	cout << "NOTE: -g list length should be equal number of bands (-b option)" << endl;
+	cout << "Example:" << endl;
+	cout << "./eq -f 48000 -s 10000 -b 30 -g 0 0 0 0 3 0 5 0 0 16 0 0 0 0 0 0 0 0 0 0 0 -10 0 0 -5 0 0 -2 0 0" << endl;
+
+	exit(1);
+}
+
+int main(int argc, char *argv[])
+{
+	int sampleRateHz;
+	int vectorSize;
+	int numberOfBands;
+	vector<double> bandsGains;
+
+	if (argc < 8)
+		usage();
+
+	/* Get sample rate in Hz. */
+	if (strcmp(argv[1], "-f"))
+		usage();
+
+	sampleRateHz = atoi(argv[2]);
+	if (sampleRateHz < 0 || sampleRateHz > 192000)
+		usage();
+
+	/* Get input vector size. */
+	if (strcmp(argv[3], "-s"))
+		usage();
+
+	vectorSize = atoi(argv[4]);
+	if (vectorSize < 0 || vectorSize > 192000)
+		usage();
+
+	/* Get number of bands. */
+	if (strcmp(argv[5], "-b"))
+		usage();
+
+	numberOfBands = atoi(argv[6]);
+	if (numberOfBands != 30) {
+		cout << "ERROR: Only 30 bands eq now implemented" << endl;
+		usage();
+	}
+
+	/* Get bands gains. */
+	if (strcmp(argv[7], "-g") || argc < 7 + numberOfBands)
+		usage();
+
+	for (int i = 0, j = 8; i < numberOfBands; i++)
+		bandsGains.push_back(atof(argv[j++]));
+
+	classEqTest(sampleRateHz, vectorSize, numberOfBands, bandsGains);
+
 	return 0;
 }
-
-
-
-
-
