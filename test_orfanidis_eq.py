@@ -30,11 +30,14 @@ import matplotlib.pyplot as plt
 sample_rate_hz = 48000
 test_data_vector_size = sample_rate_hz / 4;
 number_of_bands = 30; # Do not change it
-gains_db = "0, 0, 0, 0, 3, 0, 5, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -10, 0, 0, -5, 0, 0, -2, 0, 0";
+gains_db = "0, 0, 0, 0, 3, 0, 5, 0, 0, 16, \
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+            0, -10, 0, 0, -5, 0, 0, -2, 0, 0";
 
 # Make and run
 os.system("make")
-os.system("./eq -f %d -s %d -b %d -g %s" % (sample_rate_hz, test_data_vector_size, number_of_bands, gains_db))
+os.system("./eq -f %d -s %d -b %d -g %s" % \
+         (sample_rate_hz, test_data_vector_size, number_of_bands, gains_db))
 
 # Plot frequency responses
 butterworth_eq2 = genfromtxt('butterworth.tstdat', delimiter=',')
