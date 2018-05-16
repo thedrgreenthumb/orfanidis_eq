@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <math.h>
+#include <cmath>
 #include <vector>
 
 namespace OrfanidisEq {
@@ -499,6 +499,26 @@ public:
 	}
 };
 
+class EllipticFOSection : public FOSection {
+	EllipticFOSection() {}
+	EllipticFOSection(EllipticFOSection&) {}
+public:
+	EllipticFOSection(eq_double_t a,
+	    eq_double_t c, eq_double_t tetta_b,
+	    eq_double_t g, eq_double_t s, eq_double_t b,
+	    eq_double_t D, eq_double_t c0)
+	{
+		/*
+		Initialize all coefficients of section.
+		*/
+	}
+
+	FOSection get()
+	{
+		return *this;
+	}
+};
+
 /*
  * Bandpass filter representation.
  */
@@ -775,6 +795,52 @@ public:
 	}
 };
 
+class EllipticType2BPFilter : public BPFilter {
+private:
+	std::vector<FOSection> sections;
+
+	EllipticType2BPFilter() {}
+public:
+	EllipticType2BPFilter(unsigned int N,
+	    eq_double_t w0, eq_double_t wb,
+	    eq_double_t G, eq_double_t Gb, eq_double_t G0)
+	{
+		/* Calculate every section. */
+		/*
+			sections.push_back
+		*/
+
+	}
+
+	~EllipticType2BPFilter(){}
+	
+	static eq_double_t computeBWGainDb(eq_double_t gain)
+	{
+		eq_double_t bwGain = 0;
+		if (gain <= -6)
+			bwGain = -commonBaseGainDb;
+		else if (gain > -6 && gain < 6)
+			bwGain = gain*0.3;
+		else if (gain >= 6)
+			bwGain = commonBaseGainDb;
+
+		return bwGain;
+	}
+
+	eq_double_t process(eq_double_t in)
+	{
+		eq_double_t p0 = in, p1 = 0;
+
+		/* Process FO sections in serial connection. */
+		for (unsigned int i = 0; i < sections.size(); i++) {
+			p1 = sections[i].process(p0);
+			p0 = p1;
+		}
+
+		return p1;
+	}
+};
+
 /*
  * The next filter types are supported.
  */
@@ -782,7 +848,8 @@ typedef enum {
 	none,
 	butterworth,
 	chebyshev1,
-	chebyshev2
+	chebyshev2,
+	elliptic
 } filter_type;
 
 /*
@@ -887,6 +954,17 @@ public:
 				    wb, gain, bwGain, eqDefaultGainDb);
 
 				filters.push_back(cf2);
+				break;
+			}
+
+			case (elliptic): {
+				/*
+					Allocate elliptic filter class object,
+					and pass next parameters to constructor:
+					(N, w0, wb, gain, bwGain, eqDefaultGainDb)
+
+					filters.push_back
+				*/
 				break;
 			}
 
