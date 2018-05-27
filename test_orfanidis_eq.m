@@ -26,9 +26,9 @@ system(run_cmd);
 fa = fanalyzer(sampleRateHz);
 
 % ---- eq class tests ----
-fa.freqResp(csvread('butterworth.tstdat'),'log','eq2: butterworth');
-fa.freqResp(csvread('chebyshev1.tstdat'),'log','eq2: chebyshev1');
-fa.freqResp(csvread('chebyshev2.tstdat'),'log','eq2: chebyshev2');
+fa.freqResp(csvread('butterworth.tstdat'),'log','eq: butterworth');
+fa.freqResp(csvread('chebyshev1.tstdat'),'log','eq: chebyshev1');
+fa.freqResp(csvread('chebyshev2.tstdat'),'log','eq: chebyshev2');
 
 %Clean up all
 system('make clean');

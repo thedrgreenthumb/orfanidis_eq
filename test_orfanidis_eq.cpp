@@ -176,29 +176,41 @@ void classEqTest(int sampleRate, int testVectorLength, int numberOfBands,
 	vector<eq_double_t> inVector(testVectorLength, 0);
 	testEq.setUnitImpulse(inVector);
 
+	Eq equalizer(fg, none);
+#if 1
 	vector<eq_double_t> butterworthOut(testVectorLength, 0);
-	Eq equalizer(fg, butterworth);
+	equalizer.setEq(fg, butterworth);
 	equalizer.setSampleRate(sampleRate);
 	equalizer.changeGainsDb(gains);
 	testEq.processEq(equalizer, inVector, butterworthOut);
-	string butterworthFileName("butterworth.tstdat");
-	testEq.saveCSFile(butterworthFileName, butterworthOut);
+	testEq.saveCSFile("butterworth.tstdat", butterworthOut);
 
 	vector<eq_double_t> chebyshev1Out(testVectorLength, 0);
 	equalizer.setEq(fg, chebyshev1);
 	equalizer.setSampleRate(sampleRate);
 	equalizer.changeGainsDb(gains);
 	testEq.processEq(equalizer, inVector, chebyshev1Out);
-	string chebyshev1FileName("chebyshev1.tstdat");
-	testEq.saveCSFile(chebyshev1FileName, chebyshev1Out);
+	testEq.saveCSFile("chebyshev1.tstdat", chebyshev1Out);
 
 	vector<eq_double_t> chebyshev2Out(testVectorLength, 0);
 	equalizer.setEq(fg, chebyshev2);
 	equalizer.setSampleRate(sampleRate);
 	equalizer.changeGainsDb(gains);
 	testEq.processEq(equalizer, inVector, chebyshev2Out);
-	string chebyshev2FileName("chebyshev2.tstdat");
-	testEq.saveCSFile(chebyshev2FileName, chebyshev2Out);
+	testEq.saveCSFile("chebyshev2.tstdat", chebyshev2Out);
+#endif
+
+#if 0
+	vector<eq_double_t> ellipticOut(testVectorLength, 0);
+	// equalizer.setEq(fg, elliptic);
+	equalizer.setSampleRate(sampleRate);
+	FrequencyGrid fg2;
+	// equalizer.changeGainsDb(gains);
+	fg2.addBand(4000, 2000);
+	equalizer.setEq(fg2, elliptic);
+	testEq.processEq(equalizer, inVector, ellipticOut);
+	testEq.saveCSFile("elliptic.tstdat", ellipticOut);
+#endif
 }
 
 void usage()

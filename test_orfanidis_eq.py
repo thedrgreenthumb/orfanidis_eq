@@ -30,9 +30,9 @@ import matplotlib.pyplot as plt
 sample_rate_hz = 48000
 test_data_vector_size = sample_rate_hz / 4;
 number_of_bands = 30; # Do not change it
-gains_db = "0, 0, 0, 0, 3, 0, 5, 0, 0, 16, \
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-            0, -10, 0, 0, -5, 0, 0, -2, 0, 0";
+gains_db = "0, 0, 0, 0, 3, 0, 5, 0, 4, 16, \
+            8, -16, 8, 0, 0, 0, 0, 0, 0, 0, \
+            4, -10, -6, 0, -5, 0, 0, -2, 0, 0";
 
 # Make and run
 os.system("make")
@@ -40,8 +40,8 @@ os.system("./eq -f %d -s %d -b %d -g %s" % \
          (sample_rate_hz, test_data_vector_size, number_of_bands, gains_db))
 
 # Plot frequency responses
-butterworth_eq2 = genfromtxt('butterworth.tstdat', delimiter=',')
-w, h = signal.freqz(butterworth_eq2, 1, 65536, sample_rate_hz)
+butterworth_eq = genfromtxt('butterworth.tstdat', delimiter=',')
+w, h = signal.freqz(butterworth_eq, 1, 65536, sample_rate_hz)
 plt.title('Butterworth filter frequency response')
 plt.semilogx(sample_rate_hz*(w / np.pi), 20*np.log10(abs(h)), 'b')
 plt.ylabel('Amplitude [dB]', color='b')
@@ -51,8 +51,8 @@ plt.axis('tight')
 plt.axis([20, 20000, -30, 30])
 plt.show()
 
-chebyshev1_eq2 = genfromtxt('chebyshev1.tstdat', delimiter=',')
-w, h = signal.freqz(chebyshev1_eq2, 1, 65536, sample_rate_hz)
+chebyshev1_eq = genfromtxt('chebyshev1.tstdat', delimiter=',')
+w, h = signal.freqz(chebyshev1_eq, 1, 65536, sample_rate_hz)
 plt.title('Chebyshev 1 filter frequency response')
 plt.semilogx(sample_rate_hz*(w / np.pi), 20*np.log10(abs(h)), 'b')
 plt.ylabel('Amplitude [dB]', color='b')
@@ -62,8 +62,8 @@ plt.axis('tight')
 plt.axis([20, 20000, -30, 30])
 plt.show()
 
-chebyshev2_eq2 = genfromtxt('chebyshev2.tstdat', delimiter=',')
-w, h = signal.freqz(chebyshev2_eq2, 1, 65536, sample_rate_hz)
+chebyshev2_eq = genfromtxt('chebyshev2.tstdat', delimiter=',')
+w, h = signal.freqz(chebyshev2_eq, 1, 65536, sample_rate_hz)
 plt.title('Chebyshev 2 filter frequency response')
 plt.semilogx(sample_rate_hz*(w / np.pi), 20*np.log10(abs(h)), 'b')
 plt.ylabel('Amplitude [dB]', color='b')
@@ -72,6 +72,19 @@ plt.grid()
 plt.axis('tight')
 plt.axis([20, 20000, -30, 30])
 plt.show()
+
+"""
+elliptic_eq = genfromtxt('elliptic.tstdat', delimiter=',')
+w, h = signal.freqz(elliptic_eq, 1, 65536, sample_rate_hz)
+plt.title('Elliptic filter frequency response')
+plt.semilogx(sample_rate_hz*(w / np.pi), 20*np.log10(abs(h)), 'b')
+plt.ylabel('Amplitude [dB]', color='b')
+plt.xlabel('Frequency [Hz]')
+plt.grid()
+plt.axis('tight')
+plt.axis([20, 20000, -30, 30])
+plt.show()
+"""
 
 # Cleanup
 os.system("make clean")
