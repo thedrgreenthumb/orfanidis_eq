@@ -62,7 +62,6 @@ static const eq_double_t highestAudioFreqHz = 20000;
 /* Default gain values for every type of filter channel. */
 static const eq_double_t eqGainRangeDb = 40;
 static const eq_double_t eqGainStepDb = 1;
-static const eq_double_t commonBaseGainDb = 3;
 static const eq_double_t eqDefaultGainDb = 0;
 
 /*
@@ -362,6 +361,13 @@ public:
 
 		return 0;
 	}
+
+	void printFrequencyGrid()
+	{
+		for (unsigned int i = 0; i < getNumberOfBands(); i++) {
+			cout << i << ") " << freqs[i].minFreq << " " << freqs[i].centerFreq << " " << freqs[i].maxFreq << endl;
+		}
+	}
 };
 
 struct SOSection
@@ -610,11 +616,11 @@ public:
 	{
 		eq_double_t bwGain = 0;
 		if (gain <= -6)
-			bwGain = gain + commonBaseGainDb;
+			bwGain = gain + 3;
 		else if (gain > -6 && gain < 6)
-			bwGain = gain * 0.5;
+			bwGain = gain / sqrt(2);
 		else if (gain >= 6)
-			bwGain = gain - commonBaseGainDb;
+			bwGain = gain - 3;
 
 		return bwGain;
 	}
@@ -691,12 +697,10 @@ public:
 	static eq_double_t computeBWGainDb(eq_double_t gain)
 	{
 		eq_double_t bwGain = 0;
-		if (gain <= -6)
-			bwGain = gain + 1;
-		else if (gain > -6 && gain < 6)
-			bwGain = gain * 0.9;
-		else if (gain >= 6)
-			bwGain = gain - 1;
+		if (gain < 0)
+			bwGain = gain + 0.01;
+		else
+			bwGain = gain - 0.01;
 
 		return bwGain;
 	}
@@ -772,20 +776,14 @@ public:
 	}
 
 	~ChebyshevType2BPFilter(){}
-	
+
 	static eq_double_t computeBWGainDb(eq_double_t gain)
 	{
-		/* 
-		 * TODO: Investigate this place, possibly bad BP-filters
-		 * FR on low gains problem is here.
-		 */
 		eq_double_t bwGain = 0;
-		if (gain <= -6)
-			bwGain = -commonBaseGainDb;
-		else if (gain > -6 && gain < 6)
-			bwGain = gain*0.3;
-		else if (gain >= 6)
-			bwGain = commonBaseGainDb;
+		if (gain < 0)
+			bwGain = -0.1;
+		else
+			bwGain = 0.1;
 
 		return bwGain;
 	}
@@ -1113,6 +1111,12 @@ public:
 		Gb = 11.99;
 		G0 = 0;
 
+		/* Case if G == 0 : allpass. */
+		if(G == 0 && G0 == 0) {
+			sections.push_back(FOSection());
+			return;
+		}
+
 		const double tol = 2.2e-16;
 		double Gs = (G >= 0) ? G - Gb : G + Gb;
 
@@ -1199,12 +1203,10 @@ public:
 	static eq_double_t computeBWGainDb(eq_double_t gain)
 	{
 		eq_double_t bwGain = 0;
-		if (gain <= -6)
-			bwGain = -commonBaseGainDb;
-		else if (gain > -6 && gain < 6)
-			bwGain = gain*0.3;
-		else if (gain >= 6)
-			bwGain = commonBaseGainDb;
+		if (gain < 0)
+			bwGain = gain + 0.01;
+		else
+			bwGain = gain - 0.01;
 
 		return bwGain;
 	}
