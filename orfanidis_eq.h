@@ -265,7 +265,7 @@ public:
 			/* Find lowest center frequency in the band. */
 			eq_double_t lowestFc = fc;
 
-			while (lowestFc > lowestAudioFreqHz)
+			while (lowestFc >= lowestAudioFreqHz)
 				lowestFc /= pow(2, 0.5);
 
 			if (lowestFc < lowestAudioFreqHz)
@@ -364,9 +364,9 @@ public:
 
 	void printFrequencyGrid()
 	{
-		for (unsigned int i = 0; i < getNumberOfBands(); i++) {
-			cout << i << ") " << freqs[i].minFreq << " " << freqs[i].centerFreq << " " << freqs[i].maxFreq << endl;
-		}
+		for (unsigned int i = 0; i < getNumberOfBands(); i++)
+			cout << i << ") " << freqs[i].minFreq << " " <<
+			    freqs[i].centerFreq << " " << freqs[i].maxFreq << endl;
 	}
 };
 
@@ -1104,12 +1104,14 @@ public:
 	    eq_double_t G, eq_double_t Gb, eq_double_t G0)
 	{
 		/* ===== REASIGN INPUT VALUES FOR TESTING PURPOSES ===== */
+		/*
 		N = 4;
-		w0 = 0.6283;
+		w0 = 1.4137;
 		wb = 0.3142;
-		G = 12;
-		Gb = 11.99;
+		G = -6;
+		Gb = -5.99;
 		G0 = 0;
+		*/
 
 		/* Case if G == 0 : allpass. */
 		if(G == 0 && G0 == 0) {
@@ -1118,7 +1120,7 @@ public:
 		}
 
 		const double tol = 2.2e-16;
-		double Gs = (G >= 0) ? G - Gb : G + Gb;
+		double Gs =  G - Gb;
 
 		/* Get number of analog sections. */
 		unsigned int r = N % 2;
@@ -1196,6 +1198,7 @@ public:
 		}
 
 		blt(BaAa, w0, sections);
+
 	}
 
 	~EllipticTypeBPFilter(){}

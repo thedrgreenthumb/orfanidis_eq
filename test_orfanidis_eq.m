@@ -29,6 +29,8 @@ fa = fanalyzer(sampleRateHz);
 fa.freqResp(csvread('butterworth.tstdat'),'log','eq: butterworth');
 fa.freqResp(csvread('chebyshev1.tstdat'),'log','eq: chebyshev1');
 fa.freqResp(csvread('chebyshev2.tstdat'),'log','eq: chebyshev2');
+fa.freqResp(csvread('elliptic.tstdat'), 'log', 'eq: elliptic');
+
 
 %Clean up all
 system('make clean');
