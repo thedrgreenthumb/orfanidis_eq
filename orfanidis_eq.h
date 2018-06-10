@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2018 Fedor Uporov
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -64,17 +64,17 @@ static const eq_double_t eqDefaultGainDb = 0;
  * Also, fast conversions between linear and logarithmic scales are included.
  */
 class Conversions {
-	int rangeDb;
 	std::vector<eq_double_t> linGains;
 
 	int linGainsIndex(eq_double_t x)
 	{
 		int inTx = (int)x;
+		int range = linGains.size() / 2;
 
-		if ((x >= -rangeDb) && (x < rangeDb - 1))
-			return rangeDb + inTx;
+		if ((x >= -range) && (x < range - 1))
+			return range + inTx;
 
-		return rangeDb;
+		return range;
 	}
 
 	Conversions();
@@ -88,8 +88,6 @@ public:
 	{
 		int step = -range;
 
-		rangeDb = range;
-
 		while (step <= range)
 			linGains.push_back(db2Lin(step++));
 	}
@@ -99,20 +97,16 @@ public:
 		int intPart = x;
 		eq_double_t fractPart = x - intPart;
 
-		return linGains[linGainsIndex(intPart)] * (1-fractPart) +
-		    linGains[linGainsIndex(intPart + 1)] * fractPart;
+		return linGains.at(linGainsIndex(intPart)) * (1-fractPart) +
+		    linGains.at(linGainsIndex(intPart + 1)) * fractPart;
 	}
 
 	eq_double_t fastLin2Db(eq_double_t x)
 	{
 		if ((x >= linGains[0]) && (x < linGains[linGains.size() - 1]))
 			for (size_t i = 0; i < linGains.size() - 2; i++)
-				if ((x >= linGains[i]) && (x < linGains[i + 1])) {
-					int intPart = i - rangeDb;
-					eq_double_t fractPart = x - (int)(x);
-
-					return intPart + fractPart;
-				}
+				if ((x >= linGains[i]) && (x < linGains[i + 1]))
+					return i - linGains.size() / 2.0 + (x - (int)(x));
 
 		return 0;
 	}
@@ -161,7 +155,7 @@ typedef enum {
 
 /*
  * Frequency grid representation.
- * Allow to calculate all required bandpass filters frequences
+ * Allow to calculate all required bandpass filters frequencies
  * for equalizer construction.
  */
 class FrequencyGrid {
@@ -173,6 +167,7 @@ public:
 	eq_error_t setBand(eq_double_t fl, eq_double_t fc, eq_double_t fh)
 	{
 		freqs.clear();
+
 		return addBand(fl, fc, fh);
 	}
 
@@ -180,6 +175,7 @@ public:
 	{
 		if (fl < fc && fc < fh) {
 			freqs.push_back(Band(fl, fc, fh));
+
 			return no_error;
 		}
 
@@ -189,9 +185,8 @@ public:
 	eq_error_t addBand(eq_double_t fc, eq_double_t df)
 	{
 		if (fc >= df /2 ) {
-			eq_double_t fmin = fc - df / 2;
-			eq_double_t fmax = fc + df / 2;
-			freqs.push_back(Band(fmin, fc, fmax));
+			freqs.push_back(Band(fc - df / 2, fc, fc + df / 2));
+
 			return no_error;
 		}
 
@@ -212,7 +207,7 @@ public:
 			if (lowestFc < lowestGridCenterFreqHz)
 				lowestFc *= 4.0;
 
-			/* Calculate frequences. */
+			/* Calculate frequencies. */
 			eq_double_t f0 = lowestFc;
 			for (size_t i = 0; i < 5 ; i++) {
 				freqs.push_back(Band(f0 / 2, f0, f0 * 2));
@@ -239,7 +234,7 @@ public:
 			if (lowestFc < lowestGridCenterFreqHz)
 				lowestFc *= 2;
 
-			/* Calculate frequences. */
+			/* Calculate frequencies. */
 			eq_double_t f0 = lowestFc;
 			for (size_t i = 0; i < 10; i++) {
 				freqs.push_back(
@@ -268,7 +263,7 @@ public:
 			if (lowestFc < lowestAudioFreqHz)
 				lowestFc *= pow(2, 0.5);
 
-			/* Calculate frequences. */
+			/* Calculate frequencies. */
 			eq_double_t f0 = lowestFc;
 			for (size_t i = 0; i < 20; i++) {
 				freqs.push_back(Band(f0 / pow(2, 0.25),
@@ -296,13 +291,13 @@ public:
 			if (lowestFc < lowestAudioFreqHz)
 				lowestFc *= pow(2.0, 1.0/3.0);
 
-			/* Calculate frequences. */
+			/* Calculate frequencies. */
 			eq_double_t f0 = lowestFc;
 			for (size_t i = 0; i < 30; i++) {
 				freqs.push_back(Band(f0 / pow(2.0, 1.0/6.0),
 				    f0, f0 * pow(2.0, 1.0/6.0)));
 
-				f0 *= pow(2,1.0/3.0);
+				f0 *= pow(2, 1.0/3.0);
 			}
 
 			return no_error;
@@ -361,16 +356,20 @@ public:
 
 	void printFrequencyGrid()
 	{
-		for (size_t i = 0; i < getNumberOfBands(); i++)
-			std::cout << i << ") " << freqs[i].minFreq << " " <<
-			    freqs[i].centerFreq << " " << freqs[i].maxFreq << std::endl;
+		size_t i = 0;
+		for (auto const& band: freqs)
+			std::cout << i++ << ") " << band.minFreq << " " <<
+			    band.centerFreq << " " << band.maxFreq << std::endl;
 	}
 };
 
+/*
+ * Second order biquad section representation.
+ */
 struct SOSection
 {
-	double b0, b1, b2;
-	double a0, a1, a2;
+	eq_double_t b0, b1, b2;
+	eq_double_t a0, a1, a2;
 };
 
 /*
@@ -404,139 +403,24 @@ protected:
 		denumBuf[1] = denumBuf[0];
 		*denumBuf = out;
 
-		return(out);
+		return out;
 	}
 
 public:
-	FOSection()
+	FOSection() : b0(1), b1(0), b2(0), b3(0), b4(0),
+	    a0(1), a1(0), a2(0), a3(0), a4(0), numBuf{0}, denumBuf{0}
+	{}
+
+	FOSection(std::vector<eq_double_t>& b, std::vector<eq_double_t> a) :
+	    numBuf{0}, denumBuf{0}
 	{
-		b0 = 1; b1 = 0; b2 = 0; b3 = 0; b4 = 0;
-		a0 = 1; a1 = 0; a2 = 0; a3 = 0; a4 = 0;
-
-		for (size_t i = 0; i < 4; i++) {
-			numBuf[i] = 0;
-			denumBuf[i] = 0;
-		}
-	}
-
-	virtual ~FOSection() {}
-
-	virtual FOSection get()
-	{
-		return *this;
+		b0 = b[0]; b1 = b[1]; b2 = b[2]; b3 = b[3]; b4 = b[4];
+		a0 = a[0]; a1 = a[1]; a2 = a[2]; a3 = a[3]; a4 = a[4];
 	}
 
 	eq_double_t process(eq_double_t in)
 	{
 		return df1FOProcess(in);
-	}
-};
-
-class ButterworthFOSection : public FOSection {
-	ButterworthFOSection() {}
-	ButterworthFOSection(ButterworthFOSection&) {}
-public:
-	ButterworthFOSection(eq_double_t beta,
-	    eq_double_t s, eq_double_t g, eq_double_t g0,
-	    eq_double_t D, eq_double_t c0)
-	{
-		b0 = (g*g*beta*beta + 2*g*g0*s*beta + g0*g0)/D;
-		b1 = -4*c0*(g0*g0 + g*g0*s*beta)/D;
-		b2 = 2*(g0*g0*(1 + 2*c0*c0) - g*g*beta*beta)/D;
-		b3 = -4*c0*(g0*g0 - g*g0*s*beta)/D;
-		b4 = (g*g*beta*beta - 2*g*g0*s*beta + g0*g0)/D;
-
-		a0 = 1;
-		a1 = -4*c0*(1 + s*beta)/D;
-		a2 = 2*(1 + 2*c0*c0 - beta*beta)/D;
-		a3 = -4*c0*(1 - s*beta)/D;
-		a4 = (beta*beta - 2*s*beta + 1)/D;
-	}
-
-	FOSection get()
-	{
-		return *this;
-	}
-};
-
-class ChebyshevType1FOSection : public FOSection {
-	ChebyshevType1FOSection() {}
-	ChebyshevType1FOSection(ChebyshevType1FOSection&) {}
-public:
-	ChebyshevType1FOSection(eq_double_t a,
-	    eq_double_t c, eq_double_t tetta_b,
-	    eq_double_t g0, eq_double_t s, eq_double_t b,
-	    eq_double_t D, eq_double_t c0)
-	{
-		b0 = ((b*b + g0*g0*c*c)*tetta_b*tetta_b + 2*g0*b*s*tetta_b + g0*g0)/D;
-		b1 = -4*c0*(g0*g0 + g0*b*s*tetta_b)/D;
-		b2 = 2*(g0*g0*(1 + 2*c0*c0) - (b*b + g0*g0*c*c)*tetta_b*tetta_b)/D;
-		b3 = -4*c0*(g0*g0 - g0*b*s*tetta_b)/D;
-		b4 = ((b*b + g0*g0*c*c)*tetta_b*tetta_b - 2*g0*b*s*tetta_b + g0*g0)/D;
-
-		a0 = 1;
-		a1 = -4*c0*(1 + a*s*tetta_b)/D;
-		a2 = 2*(1 + 2*c0*c0 - (a*a + c*c)*tetta_b*tetta_b)/D;
-		a3 = -4*c0*(1 - a*s*tetta_b)/D;
-		a4 = ((a*a + c*c)*tetta_b*tetta_b - 2*a*s*tetta_b + 1)/D;
-	}
-
-	FOSection get()
-	{
-		return *this;
-	}
-};
-
-class ChebyshevType2FOSection : public FOSection {
-	ChebyshevType2FOSection() {}
-	ChebyshevType2FOSection(ChebyshevType2FOSection&) {}
-public:
-	ChebyshevType2FOSection(eq_double_t a,
-	    eq_double_t c, eq_double_t tetta_b,
-	    eq_double_t g, eq_double_t s, eq_double_t b,
-	    eq_double_t D, eq_double_t c0)
-	{
-		b0 = (g*g*tetta_b*tetta_b + 2*g*b*s*tetta_b + b*b + g*g*c*c)/D;
-		b1 = -4*c0*(b*b + g*g*c*c + g*b*s*tetta_b)/D;
-		b2 = 2*((b*b + g*g*c*c)*(1 + 2*c0*c0) - g*g*tetta_b*tetta_b)/D;
-		b3 = -4*c0*(b*b + g*g*c*c - g*b*s*tetta_b)/D;
-		b4 = (g*g*tetta_b*tetta_b - 2*g*b*s*tetta_b + b*b + g*g*c*c)/D;
-
-		a0 = 1;
-		a1 = -4*c0*(a*a + c*c + a*s*tetta_b)/D;
-		a2 = 2*((a*a + c*c)*(1 + 2*c0*c0) - tetta_b*tetta_b)/D;
-		a3 = -4*c0*(a*a + c*c - a*s*tetta_b)/D;
-		a4 = (tetta_b*tetta_b - 2*a*s*tetta_b + a*a + c*c)/D;
-	}
-
-	FOSection get()
-	{
-		return *this;
-	}
-};
-
-class EllipticFOSection : public FOSection {
-	EllipticFOSection() {}
-	EllipticFOSection(EllipticFOSection&) {}
-public:
-	EllipticFOSection(std::vector<double> b, std::vector<double> a)
-	{
-		b0 = b[0];
-		b1 = b[1];
-		b2 = b[2];
-		b3 = b[3];
-		b4 = b[4];
-
-		a0 = a[0];
-		a1 = a[1];
-		a2 = a[2];
-		a3 = a[3];
-		a4 = a[4];
-	}
-
-	FOSection get()
-	{
-		return *this;
 	}
 };
 
@@ -552,7 +436,6 @@ public:
 };
 
 class ButterworthBPFilter : public BPFilter {
-private:
 	std::vector<FOSection> sections;
 
 	ButterworthBPFilter() {}
@@ -564,10 +447,10 @@ public:
 	
 	ButterworthBPFilter(size_t N,
 	    eq_double_t w0, eq_double_t wb,
-	    eq_double_t G, eq_double_t Gb, eq_double_t G0)
+	    eq_double_t G, eq_double_t Gb)
 	{
 		/* Case if G == 0 : allpass. */
-		if (G == 0 && G0 == 0) {
+		if (G == 0) {
 			sections.push_back(FOSection());
 			return;
 		}
@@ -577,9 +460,9 @@ public:
 		size_t L = (N - r) / 2;
 
 		/* Convert gains to linear scale. */
+		eq_double_t G0 = Conversions::db2Lin(0.0);
 		G = Conversions::db2Lin(G);
 		Gb = Conversions::db2Lin(Gb);
-		G0 = Conversions::db2Lin(G0);
 
 		eq_double_t e = sqrt((G*G - Gb*Gb) / (Gb*Gb - G0*G0));
 		eq_double_t g = pow(G, 1.0 / N);
@@ -593,8 +476,23 @@ public:
 			eq_double_t si = sin(M_PI * ui / 2.0);
 			eq_double_t Di = beta*beta + 2*si*beta + 1;
 
-			sections.push_back(
-			    ButterworthFOSection(beta, si, g, g0, Di, c0));
+			std::vector<eq_double_t> B = {
+			    (g*g*beta*beta + 2*g*g0*si*beta + g0*g0)/Di,
+			    -4*c0*(g0*g0 + g*g0*si*beta)/Di,
+			    2*(g0*g0*(1 + 2*c0*c0) - g*g*beta*beta)/Di,
+			    -4*c0*(g0*g0 - g*g0*si*beta)/Di,
+			    (g*g*beta*beta - 2*g*g0*si*beta + g0*g0)/Di
+			};
+
+			std::vector<eq_double_t> A = {
+			    1,
+			    -4*c0*(1 + si*beta)/Di,
+			    2*(1 + 2*c0*c0 - beta*beta)/Di,
+			    -4*c0*(1 - si*beta)/Di,
+			    (beta*beta - 2*si*beta + 1)/Di
+			};
+
+			sections.push_back(FOSection(B, A));
 		}
 	}
 
@@ -603,11 +501,11 @@ public:
 	static eq_double_t computeBWGainDb(eq_double_t gain)
 	{
 		eq_double_t bwGain = 0;
-		if (gain <= -6)
+		if (gain < -3)
 			bwGain = gain + 3;
-		else if (gain > -6 && gain < 6)
+		else if (gain >= -3 && gain < 3)
 			bwGain = gain / sqrt(2);
-		else if (gain >= 6)
+		else if (gain >= 3)
 			bwGain = gain - 3;
 
 		return bwGain;
@@ -634,10 +532,10 @@ class ChebyshevType1BPFilter : public BPFilter {
 public:
 	ChebyshevType1BPFilter(size_t N,
 	    eq_double_t w0, eq_double_t wb,
-	    eq_double_t G, eq_double_t Gb, eq_double_t G0)
+	    eq_double_t G, eq_double_t Gb)
 	{
 		/* Case if G == 0 : allpass. */
-		if(G == 0 && G0 == 0) {
+		if(G == 0) {
 			sections.push_back(FOSection());
 			return;
 		}
@@ -647,9 +545,9 @@ public:
 		size_t L = (N - r) / 2;
 
 		/* Convert gains to linear scale. */
+		eq_double_t G0 = Conversions::db2Lin(0.0);
 		G = Conversions::db2Lin(G);
 		Gb = Conversions::db2Lin(Gb);
-		G0 = Conversions::db2Lin(G0);
 
 		eq_double_t e = sqrt((G*G - Gb*Gb) / (Gb*Gb - G0*G0));
 		eq_double_t g0 = pow(G0, 1.0 / N);
@@ -668,8 +566,23 @@ public:
 			eq_double_t Di = (a*a + ci*ci) * tetta_b * tetta_b +
 			    2.0 * a * si * tetta_b + 1;
 
-			sections.push_back(ChebyshevType1FOSection(a, ci,
-			    tetta_b, g0, si, b, Di, c0));
+			std::vector<eq_double_t> B = {
+			    ((b*b + g0*g0*ci*ci)*tetta_b*tetta_b + 2*g0*b*si*tetta_b + g0*g0)/Di,
+			    -4*c0*(g0*g0 + g0*b*si*tetta_b)/Di,
+			    2*(g0*g0*(1 + 2*c0*c0) - (b*b + g0*g0*ci*ci)*tetta_b*tetta_b)/Di,
+			    -4*c0*(g0*g0 - g0*b*si*tetta_b)/Di,
+			    ((b*b + g0*g0*ci*ci)*tetta_b*tetta_b - 2*g0*b*si*tetta_b + g0*g0)/Di
+			};
+
+			std::vector<eq_double_t> A = {
+			    1,
+			    -4*c0*(1 + a*si*tetta_b)/Di,
+			    2*(1 + 2*c0*c0 - (a*a + ci*ci)*tetta_b*tetta_b)/Di,
+			    -4*c0*(1 - a*si*tetta_b)/Di,
+			    ((a*a + ci*ci)*tetta_b*tetta_b - 2*a*si*tetta_b + 1)/Di
+			};
+
+			sections.push_back(FOSection(B, A));
 		}
 	}
 
@@ -679,9 +592,9 @@ public:
 	{
 		eq_double_t bwGain = 0;
 		if (gain < 0)
-			bwGain = gain + 0.01;
+			bwGain = gain + 0.1;
 		else
-			bwGain = gain - 0.01;
+			bwGain = gain - 0.1;
 
 		return bwGain;
 	}
@@ -701,17 +614,16 @@ public:
 };
 
 class ChebyshevType2BPFilter : public BPFilter {
-private:
 	std::vector<FOSection> sections;
 
 	ChebyshevType2BPFilter() {}
 public:
 	ChebyshevType2BPFilter(size_t N,
 	    eq_double_t w0, eq_double_t wb,
-	    eq_double_t G, eq_double_t Gb, eq_double_t G0)
+	    eq_double_t G, eq_double_t Gb)
 	{
 		/* Case if G == 0 : allpass. */
-		if (G == 0 && G0 == 0) {
+		if (G == 0) {
 			sections.push_back(FOSection());
 			return;
 		}
@@ -721,9 +633,9 @@ public:
 		size_t L = (N - r) / 2;
 
 		/* Convert gains to linear scale. */
+		eq_double_t G0 = Conversions::db2Lin(0.0);
 		G = Conversions::db2Lin(G);
 		Gb = Conversions::db2Lin(Gb);
-		G0 = Conversions::db2Lin(G0);
 
 		eq_double_t e = sqrt((G*G - Gb*Gb) / (Gb*Gb - G0*G0));
 		eq_double_t g = pow(G, 1.0 / N);
@@ -742,8 +654,23 @@ public:
 			eq_double_t Di = tetta_b*tetta_b + 2*a*si*tetta_b +
 			    a*a + ci*ci;
 
-			sections.push_back(
-			    ChebyshevType2FOSection(a, ci, tetta_b, g, si, b, Di, c0));
+			std::vector<eq_double_t> B = {
+			    (g*g*tetta_b*tetta_b + 2*g*b*si*tetta_b + b*b + g*g*ci*ci)/Di,
+			    -4*c0*(b*b + g*g*ci*ci + g*b*si*tetta_b)/Di,
+			    2*((b*b + g*g*ci*ci)*(1 + 2*c0*c0) - g*g*tetta_b*tetta_b)/Di,
+			    -4*c0*(b*b + g*g*ci*ci - g*b*si*tetta_b)/Di,
+			    (g*g*tetta_b*tetta_b - 2*g*b*si*tetta_b + b*b + g*g*ci*ci)/Di
+			};
+
+			std::vector<eq_double_t> A = {
+			    1,
+			    -4*c0*(a*a + ci*ci + a*si*tetta_b)/Di,
+			    2*((a*a + ci*ci)*(1 + 2*c0*c0) - tetta_b*tetta_b)/Di,
+			    -4*c0*(a*a + ci*ci - a*si*tetta_b)/Di,
+			    (tetta_b*tetta_b - 2*a*si*tetta_b + a*a + ci*ci)/Di
+			};
+
+			sections.push_back(FOSection(B, A));
 		}
 	}
 
@@ -776,10 +703,15 @@ public:
 
 class EllipticTypeBPFilter : public BPFilter {
 private:
+	/* complex -1. */
+	std::complex<eq_double_t> j;
 	std::vector<FOSection> sections;
 
 	EllipticTypeBPFilter() {}
 
+	/*
+	 * Landen transformations of an elliptic modulus.
+	 */
 	std::vector<eq_double_t> landen(eq_double_t k, eq_double_t tol)
 	{
 		std::vector<eq_double_t> v;
@@ -803,6 +735,9 @@ private:
 		return v;
 	}
 
+	/*
+	 * Complete elliptic integral.
+	 */
 	void ellipk(eq_double_t k, eq_double_t tol, eq_double_t& K, eq_double_t& Kprime)
 	{
 		eq_double_t kmin = 1e-6;
@@ -839,13 +774,14 @@ private:
 			Kprime = std::accumulate(std::begin(vp), std::end(vp),
 			    1.0, std::multiplies<eq_double_t>()) * M_PI/2.0;
 		}
-
-		return;
 	}
 
+	/*
+	 * Solves the degree equation in analog elliptic filter design.
+	 */
 	eq_double_t ellipdeg2(eq_double_t n, eq_double_t k, eq_double_t tol)
 	{
-		const eq_double_t M = 7.0;
+		const size_t M = 7;
 		eq_double_t K, Kprime;
 
 		ellipk(k, tol, K, Kprime);
@@ -862,42 +798,20 @@ private:
 		return 4 * sqrt(q1) * pow((1.0 + s1) / (1.0 + 2 * s2), 2);
 	}
 
-	std::vector<eq_double_t> sne(const std::vector<eq_double_t> &u, eq_double_t k, eq_double_t tol)
-	{
-		std::vector<eq_double_t> v = landen(k, tol);
-		std::vector<eq_double_t> w;
-
-		for (size_t i = 0; i < u.size(); i++)
-			w.push_back(sin(u[i] * M_PI / 2.0));
-
-		for (int i = v.size() - 1; i >= 0; i--)
-			for (size_t j = 0; j < w.size(); j++)
-				w[j] = ((1 + v[i])*w[j])/(1 + v[i]*w[j]*w[j]);
-
-		return w;
-	}
-
-	eq_double_t sign(eq_double_t x)
-	{
-		x = x / abs(x);
-
-		return x;
-	}
-
 	eq_double_t srem(eq_double_t x, eq_double_t y)
 	{
 		eq_double_t z = remainder(x, y);
 
-		z = z - y * sign(z) * ((eq_double_t)(abs(z) > y / 2.0));
-
-		return z;
+		return z - y * std::copysign(1.0, z) * ((eq_double_t)(abs(z) > y / 2.0));
 	}
 
-	std::complex<eq_double_t> acde(std::complex<eq_double_t> w, eq_double_t k, eq_double_t tol)
+	/*
+	 * Inverse of cd elliptic function.
+	 */
+	std::complex<eq_double_t> acde(std::complex<eq_double_t> w, eq_double_t k,
+	    eq_double_t tol)
 	{
 		std::vector<eq_double_t> v = landen(k, tol);
-		std::complex<eq_double_t> j =
-		    std::complex_literals::operator""i(static_cast<long double>(1.0));
 
 		for (size_t i = 0; i < v.size(); i++) {
 			eq_double_t v1;
@@ -912,16 +826,25 @@ private:
 		std::complex<eq_double_t> u = 2.0 / M_PI * acos(w);
 		eq_double_t K, Kprime;
 		ellipk(k ,tol, K, Kprime);
+
 		return srem(real(u), 4) + j*srem(imag(u), 2*(Kprime/K));
 	}
 
-	std::complex<eq_double_t> asne(std::complex<eq_double_t> w, eq_double_t k, eq_double_t tol)
+	/*
+	 * Inverse of sn elliptic function.
+	 */
+	std::complex<eq_double_t> asne(std::complex<eq_double_t> w, eq_double_t k,
+	    eq_double_t tol)
 	{
 		return 1.0 - acde(w, k, tol);
 	}
 
-	std::complex<eq_double_t> cde(std::complex<eq_double_t> u, eq_double_t k, eq_double_t tol) {
-
+	/*
+	 * cd elliptic function with normalized complex argument.
+	 */
+	std::complex<eq_double_t> cde(std::complex<eq_double_t> u, eq_double_t k,
+	    eq_double_t tol)
+	{
 		std::vector<eq_double_t> v = landen(k, tol);
 		std::complex<eq_double_t> w = cos(u * M_PI / 2.0);
 
@@ -931,6 +854,28 @@ private:
 		return w;
 	}
 
+	/*
+	 * sn elliptic function with normalized complex argument.
+	 */
+	std::vector<eq_double_t> sne(const std::vector<eq_double_t> &u,
+	    eq_double_t k, eq_double_t tol)
+	{
+		std::vector<eq_double_t> v = landen(k, tol);
+		std::vector<eq_double_t> w;
+
+		for (size_t i = 0; i < u.size(); i++)
+			w.push_back(sin(u[i] * M_PI / 2.0));
+
+		for (int i = v.size() - 1; i >= 0; i--)
+			for (size_t j = 0; j < w.size(); j++)
+				w[j] = ((1 + v[i])*w[j])/(1 + v[i]*w[j]*w[j]);
+
+		return w;
+	}
+
+	/*
+	 * Solves the degree equation in analog elliptic filter design.
+	 */
 	eq_double_t ellipdeg(size_t N, eq_double_t k1, eq_double_t tol)
 	{
 		eq_double_t L = floor(N / 2);
@@ -947,21 +892,19 @@ private:
 			eq_double_t prod = std::accumulate(begin(w), end(w),
 			    1.0, std::multiplies<eq_double_t>());
 			eq_double_t kp = pow(kc, N) * pow(prod, 4);
+
 			return sqrt(1 - kp*kp);
 		}
 	}
 
-	void blt(std::vector<SOSection> BaAa, eq_double_t w0, std::vector<FOSection>& sections)
+	/*
+	 * Bilinear transformation of analog second-order sections.
+	 */
+	void blt(const std::vector<SOSection>& aSections, eq_double_t w0,
+	    std::vector<FOSection>& sections)
 	{
-		size_t K = BaAa.size();
 		eq_double_t c0 = cos(w0);
-
-		/*
-		 * TODO: Check input vector of sections size.
-		 * There is a possibility to kill application.
-		 * Find, how to report computation error to system,
-		 * or make it impossible.
-		 */
+		size_t K = aSections.size();
 
 		std::vector<std::vector<eq_double_t>> B, A, Bhat, Ahat;
 		for (size_t i = 0; i < K; i++) {
@@ -972,12 +915,12 @@ private:
 		}
 
 		std::vector<eq_double_t> B0(3), B1(3), B2(3), A0(3), A1(3), A2(3);
-		B0[0] = BaAa[0].b0; B0[1] = BaAa[1].b0; B0[2] = BaAa[2].b0;
-		B1[0] = BaAa[0].b1; B1[1] = BaAa[1].b1; B1[2] = BaAa[2].b1;
-		B2[0] = BaAa[0].b2; B2[1] = BaAa[1].b2; B2[2] = BaAa[2].b2;
-		A0[0] = BaAa[0].a0; A0[1] = BaAa[1].a0; A0[2] = BaAa[2].a0;
-		A1[0] = BaAa[0].a1; A1[1] = BaAa[1].a1; A1[2] = BaAa[2].a1;
-		A2[0] = BaAa[0].a2; A2[1] = BaAa[1].a2; A2[2] = BaAa[2].a2;
+		B0[0] = aSections[0].b0; B0[1] = aSections[1].b0; B0[2] = aSections[2].b0;
+		B1[0] = aSections[0].b1; B1[1] = aSections[1].b1; B1[2] = aSections[2].b1;
+		B2[0] = aSections[0].b2; B2[1] = aSections[1].b2; B2[2] = aSections[2].b2;
+		A0[0] = aSections[0].a0; A0[1] = aSections[1].a0; A0[2] = aSections[2].a0;
+		A1[0] = aSections[0].a1; A1[1] = aSections[1].a1; A1[2] = aSections[2].a1;
+		A2[0] = aSections[0].a2; A2[1] = aSections[1].a2; A2[2] = aSections[2].a2;
 
 		/* Find 0th-order sections (i.e., gain sections). */
 		std::vector<size_t> zths;
@@ -1061,16 +1004,17 @@ private:
 		}
 
 		for (size_t i = 0; i < B.size(); i++)
-			sections.push_back(EllipticFOSection(B[i], A[i]));
+			sections.push_back(FOSection(B[i], A[i]));
 	}
 
 public:
 	EllipticTypeBPFilter(size_t N,
 	    eq_double_t w0, eq_double_t wb,
-	    eq_double_t G, eq_double_t Gb, eq_double_t G0)
+	    eq_double_t G, eq_double_t Gb) :
+	    j(std::complex_literals::operator""i(static_cast<long double>(1.0)))
 	{
 		/* Case if G == 0 : allpass. */
-		if(G == 0 && G0 == 0) {
+		if(G == 0) {
 			sections.push_back(FOSection());
 			return;
 		}
@@ -1083,9 +1027,9 @@ public:
 		size_t L = (N - r) / 2;
 
 		/* Convert gains to linear scale. */
+		eq_double_t G0 = Conversions::db2Lin(0.0);
 		G = Conversions::db2Lin(G);
 		Gb = Conversions::db2Lin(Gb);
-		G0 = Conversions::db2Lin(G0);
 		Gs = Conversions::db2Lin(Gs);
 
 		eq_double_t WB = tan(wb / 2.0);
@@ -1093,33 +1037,19 @@ public:
 		eq_double_t es = sqrt((G*G - Gs*Gs) / (Gs*Gs - G0*G0));
 		eq_double_t k1 = e / es;
 		eq_double_t k = ellipdeg(N, k1, tol);
-		const std::complex<eq_double_t> j =
-		    std::complex_literals::operator""i(static_cast<long double>(1.0));
-		std::complex<eq_double_t> ju0 = 0.0;
-		if (G0 != 0.0)
-			ju0 = asne(j*G / e / G0, k1, tol) / (eq_double_t)N;
-
+		std::complex<eq_double_t> ju0 = asne(j*G / e / G0, k1, tol) / (eq_double_t)N;
 		std::complex<eq_double_t> jv0 = asne(j / e, k1, tol) / (eq_double_t)N;
 
 		/* Initial initialization of analog sections. */
-		std::vector<SOSection> BaAa;
+		std::vector<SOSection> aSections;
 		if (r == 0) {
-			/*
-				Ba(1,:) = [1, 0, 0] * GB;
-				Aa(1,:) = [1, 0, 0];
-			*/
 			SOSection ba = {Gb, 0, 0, 1, 0, 0};
-			BaAa.push_back(ba);
+			aSections.push_back(ba);
 		} else if (r == 1) {
-			eq_double_t A00, A01, B00, B01, K, K1;
+			eq_double_t A00, A01, B00, B01;
 			if (G0 == 0.0 && G != 0.0) {
 				B00 = G * WB;
 				B01 = 0.0;
-			} else if (G0 != 0.0 && G == 0.0) {
-				K = 0; //ellipk(k, tol);
-				K1 = 0; //ellipk(k1, tol); <= WARN, TODO
-				B00 = 0;
-				B01 = G0 * e * N * K1 / K;
 			} else {
 				eq_double_t z0 = std::real(j* cde(-1.0 + ju0, k, tol));
 				B00 = G * WB;
@@ -1128,7 +1058,7 @@ public:
 			A00 = WB;
 			A01 = -1 / std::real(j * cde(-1.0 + jv0, k, tol));
 			SOSection ba = {B00, B01, 0, A00, A01, 0};
-			BaAa.push_back(ba);
+			aSections.push_back(ba);
 		}
 
 		if (L > 0) {
@@ -1149,11 +1079,11 @@ public:
 				    WB*WB, -2*WB*std::real(1.0/zeros), pow(abs(1.0/zeros), 2),
 				    WB*WB, -2*WB*std::real(1.0/poles), pow(abs(1.0/poles), 2)};
 
-				BaAa.push_back(sa);
+				aSections.push_back(sa);
 			}
 		}
 
-		blt(BaAa, w0, sections);
+		blt(aSections, w0, sections);
 
 	}
 
@@ -1163,9 +1093,9 @@ public:
 	{
 		eq_double_t bwGain = 0;
 		if (gain < 0)
-			bwGain = gain + 0.01;
+			bwGain = gain + 0.05;
 		else
-			bwGain = gain - 0.01;
+			bwGain = gain - 0.05;
 
 		return bwGain;
 	}
@@ -1268,7 +1198,7 @@ public:
 				ButterworthBPFilter* bf =
 				    new ButterworthBPFilter(
 				    defaultEqBandPassFiltersOrder, w0,
-				    wb, gain, bw_gain, eqDefaultGainDb);
+				    wb, gain, bw_gain);
 
 				filters.push_back(bf);
 				break;
@@ -1281,7 +1211,7 @@ public:
 				ChebyshevType1BPFilter* cf1 =
 				    new ChebyshevType1BPFilter(
 				    defaultEqBandPassFiltersOrder, w0,
-				    wb, gain, bwGain, eqDefaultGainDb);
+				    wb, gain, bwGain);
 
 				filters.push_back(cf1);
 				break;
@@ -1294,7 +1224,7 @@ public:
 				ChebyshevType2BPFilter* cf2 =
 				    new ChebyshevType2BPFilter(
 				    defaultEqBandPassFiltersOrder, w0,
-				    wb, gain, bwGain, eqDefaultGainDb);
+				    wb, gain, bwGain);
 
 				filters.push_back(cf2);
 				break;
@@ -1307,7 +1237,7 @@ public:
 				EllipticTypeBPFilter* e =
 				    new EllipticTypeBPFilter(
 				    defaultEqBandPassFiltersOrder, w0,
-				    wb, gain, bwGain, eqDefaultGainDb);
+				    wb, gain, bwGain);
 
 				filters.push_back(e);
 				break;
@@ -1350,8 +1280,6 @@ public:
 static const char *getFilterName(filter_type type)
 {
 	switch(type) {
-	case none:
-		return "not initialized";
 	case butterworth:
 		return "butterworth";
 	case chebyshev1:
@@ -1428,7 +1356,7 @@ public:
 		return setEq(currentEqType);
 	}
 
-	eq_error_t changeGains(std::vector<eq_double_t> bandGains)
+	eq_error_t changeGains(const std::vector<eq_double_t>& bandGains)
 	{
 		if (channels.size() == bandGains.size())
 			for(size_t j = 0; j < channels.size(); j++)
@@ -1439,7 +1367,7 @@ public:
 		return no_error;
 	}
 
-	eq_error_t changeGainsDb(std::vector<eq_double_t> bandGains)
+	eq_error_t changeGainsDb(const std::vector<eq_double_t>& bandGains)
 	{
 		if (channels.size() == bandGains.size())
 			for(size_t j = 0; j < channels.size(); j++)

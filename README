@@ -13,24 +13,24 @@ Implemented next filters types:
 	Butterworth
 	Chebyshev Type 1
 	Chebyshev Type 2
+	Elliptic
 
 Classes description:
-	The two classes of equalizers are provided: eq1 and eq2.
-	eq1 - equalizer with channels, which are consist of single bandpass filter.
-	eq2 - every channel consist of set of precomputed filters, 
+	eq - every channel consist of set of precomputed filters, 
 	where every filter computed for single gain value.
-	eq1 and eq2 have the same API.
 	See Usage guide below.
 
 How to run:
-	Run test_orfanidis_eq.m script using MATLAB.
-	The three plots for every filter type should appear.
+	Run test_orfanidis_eq.m script using MATLAB
+	or
+	$ python ./test_orfanidis_eq.py
+	The four plots for every filter type should appear.
 
 Usage guide:
 	//Create frequency grid and equalizer objects
 	freq_grid fg;
 	freq_grid.set_N_bands();
-	eqX equalizer(fg, filter_type);
+	eq equalizer(fg, filter_type);
 	//Set gains for every band
 	equalizer.change_gains();
 	//Sample by sample processing
