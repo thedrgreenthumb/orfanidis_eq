@@ -1,5 +1,0 @@
-- Add tests matlab implementation for Windows.
-- Swap std::vectors, which are channel gains in eq class, to POD arrays.
-- Add elleptic filters implementation to eq class.
-
-
